@@ -1,0 +1,7 @@
+<svg width="240" height="180" viewBox="0 0 240 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="240" height="180" rx="28" fill="#FAFAF6"/>
+  <circle cx="120" cy="72" r="42" fill="#E8F7F0"/>
+  <path d="M98 88C98 68 111 51 134 43C131 63 142 73 154 84C137 84 124 94 117 112C114 100 107 92 98 88Z" fill="#1E7A5A"/>
+  <text x="58" y="138" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#123C32">还没有生成作品</text>
+  <text x="55" y="162" font-family="Arial, sans-serif" font-size="13" fill="#687078">输入一句灵感，开始你的第一首歌</text>
+</svg>
