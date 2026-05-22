@@ -41,7 +41,7 @@
 
 - 前端：uni-app / Vue3
 - 后端：Python / FastAPI
-- 数据库：PostgreSQL 或 MySQL
+- 数据库：MySQL 8.0
 - ORM：SQLAlchemy 2.x
 - 数据迁移：Alembic
 - 缓存：Redis
@@ -52,12 +52,12 @@
 
 ## 当前阶段
 
-当前仓库已完成产品设计文档框架、基础 UI 设计资产和 Python 后端技术栈方案，后续可继续进入项目初始化与开发阶段。
+当前仓库已完成产品设计文档框架、基础 UI 设计资产和 Python + FastAPI + MySQL 技术栈方案，后续可继续进入项目初始化与开发阶段。
 
 建议下一步：
 
 1. 初始化小程序前端项目。
 2. 初始化 Python FastAPI 后端服务项目。
-3. 建立数据库迁移文件。
+3. 配置 MySQL 8.0 与 Alembic 数据库迁移。
 4. 接入 AI 生成接口。
 5. 完成 MVP 核心闭环。
