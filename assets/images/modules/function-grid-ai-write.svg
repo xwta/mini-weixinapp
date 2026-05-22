@@ -1,0 +1,6 @@
+<svg width="76" height="86" viewBox="0 0 76 86" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="76" height="86" rx="22" fill="#FFFFFF"/>
+  <circle cx="38" cy="31" r="16" fill="#E8F7F0"/>
+  <path d="M31 34C31 26 36 20 44 18C43 25 47 29 52 33C45 33 40 37 37 44C36 39 34 36 31 34Z" fill="#1E7A5A"/>
+  <text x="20" y="68" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#123C32">AI写歌</text>
+</svg>
