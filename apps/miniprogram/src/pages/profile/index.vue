@@ -40,10 +40,10 @@
         </view>
       </view>
 
-      <view class="vip-card">
+      <view class="vip-card" @tap="goMembership">
         <view class="vip-title">谱灵 AI 会员</view>
         <view class="vip-desc">高级改编、导出图片、更多生成次数</view>
-        <view class="vip-btn" @tap="showDeveloping">立即开通</view>
+        <view class="vip-btn">立即开通</view>
       </view>
 
       <view v-if="auth.isLoggedIn" class="logout" @tap="handleLogout">退出登录</view>
@@ -77,6 +77,10 @@ function goMySongs() {
 
 function goFavorites() {
   uni.navigateTo({ url: '/pages/favorites/index' })
+}
+
+function goMembership() {
+  uni.navigateTo({ url: '/pages/membership/index' })
 }
 
 function showDeveloping() {
