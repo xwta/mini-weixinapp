@@ -1,0 +1,81 @@
+$brand-green: #1e7a5a;
+$deep-green: #123c32;
+$mint: #e8f7f0;
+$cream: #fff3cf;
+$paper: #fafaf6;
+$text: #1f2428;
+$muted: #687078;
+$border: #eef0ef;
+
+.container {
+  min-height: 100vh;
+  padding: 48rpx 32rpx 40rpx;
+  background: $paper;
+}
+
+.page-title {
+  color: $deep-green;
+  font-size: 52rpx;
+  font-weight: 900;
+  line-height: 1.18;
+}
+
+.page-subtitle {
+  margin-top: 14rpx;
+  color: $muted;
+  font-size: 28rpx;
+  line-height: 1.5;
+}
+
+.card {
+  background: #fff;
+  border-radius: 40rpx;
+  box-shadow: 0 16rpx 48rpx rgba(18, 60, 50, 0.06);
+}
+
+.primary-btn {
+  height: 96rpx;
+  border-radius: 48rpx;
+  background: $brand-green;
+  color: #fff;
+  font-size: 30rpx;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.secondary-btn {
+  height: 88rpx;
+  border-radius: 44rpx;
+  background: $mint;
+  color: $brand-green;
+  font-size: 28rpx;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.section-title {
+  color: $deep-green;
+  font-size: 36rpx;
+  font-weight: 900;
+  margin: 40rpx 0 20rpx;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 48rpx;
+  padding: 0 22rpx;
+  border-radius: 24rpx;
+  background: $mint;
+  color: $brand-green;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.muted {
+  color: $muted;
+}
