@@ -1,0 +1,6 @@
+<svg width="164" height="52" viewBox="0 0 164 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="164" height="52" rx="26" fill="#1E7A5A"/>
+  <path d="M43 17H60L67 24V36C67 39 65 41 62 41H43C40 41 38 39 38 36V22C38 19 40 17 43 17Z" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M45 17V27H58V17" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+  <text x="76" y="33" font-family="Arial, sans-serif" font-size="15" font-weight="800" fill="#FFFFFF">保存作品</text>
+</svg>
