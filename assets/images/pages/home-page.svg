@@ -1,0 +1,46 @@
+<svg width="390" height="844" viewBox="0 0 390 844" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#FAFAF6"/>
+  <rect x="20" y="54" width="350" height="52" rx="26" fill="#FFFFFF"/>
+  <text x="36" y="87" font-family="Arial, sans-serif" font-size="15" fill="#A0A7AE">搜索歌曲 / 输入灵感</text>
+  <circle cx="344" cy="80" r="16" fill="#E8F7F0"/>
+  <path d="M338 80H350M344 74V86" stroke="#1E7A5A" stroke-width="2.5" stroke-linecap="round"/>
+  <rect x="20" y="128" width="350" height="190" rx="30" fill="#FFFFFF"/>
+  <circle cx="300" cy="196" r="52" fill="#E8F7F0"/>
+  <path d="M277 210C277 186 291 166 317 156C314 177 326 188 340 201C321 202 306 211 298 232C295 219 287 213 277 210Z" fill="#1E7A5A"/>
+  <text x="42" y="178" font-family="Arial, sans-serif" font-size="27" font-weight="800" fill="#123C32">让 AI 帮你写一首</text>
+  <text x="42" y="214" font-family="Arial, sans-serif" font-size="27" font-weight="800" fill="#123C32">能弹唱的歌</text>
+  <text x="42" y="246" font-family="Arial, sans-serif" font-size="14" fill="#687078">输入灵感，生成歌词、和弦和吉他谱</text>
+  <rect x="42" y="268" width="128" height="38" rx="19" fill="#1E7A5A"/>
+  <text x="70" y="292" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF">开始创作</text>
+  <rect x="20" y="342" width="76" height="86" rx="22" fill="#FFFFFF"/>
+  <circle cx="58" cy="373" r="16" fill="#E8F7F0"/>
+  <text x="40" y="410" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#123C32">AI写歌</text>
+  <rect x="108" y="342" width="76" height="86" rx="22" fill="#FFFFFF"/>
+  <circle cx="146" cy="373" r="16" fill="#FFF3CF"/>
+  <text x="122" y="410" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#123C32">配和弦</text>
+  <rect x="196" y="342" width="76" height="86" rx="22" fill="#FFFFFF"/>
+  <circle cx="234" cy="373" r="16" fill="#E8F7F0"/>
+  <text x="210" y="410" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#123C32">吉他谱</text>
+  <rect x="284" y="342" width="76" height="86" rx="22" fill="#FFFFFF"/>
+  <circle cx="322" cy="373" r="16" fill="#FFF3CF"/>
+  <text x="298" y="410" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#123C32">练习</text>
+  <text x="22" y="473" font-family="Arial, sans-serif" font-size="20" font-weight="800" fill="#123C32">今日灵感</text>
+  <rect x="20" y="492" width="350" height="96" rx="24" fill="#FFFFFF"/>
+  <rect x="38" y="514" width="62" height="52" rx="18" fill="#E8F7F0"/>
+  <text x="118" y="528" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#123C32">毕业那天没说出口的话</text>
+  <text x="118" y="554" font-family="Arial, sans-serif" font-size="13" fill="#687078">校园民谣 · C调 · 新手友好</text>
+  <rect x="286" y="536" width="58" height="28" rx="14" fill="#E8F7F0"/>
+  <text x="303" y="555" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#1E7A5A">生成</text>
+  <text x="22" y="633" font-family="Arial, sans-serif" font-size="20" font-weight="800" fill="#123C32">新手必弹</text>
+  <rect x="20" y="654" width="166" height="110" rx="24" fill="#FFFFFF"/>
+  <text x="42" y="690" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#123C32">四和弦弹唱</text>
+  <text x="42" y="718" font-family="Arial, sans-serif" font-size="13" fill="#687078">C G Am F</text>
+  <rect x="204" y="654" width="166" height="110" rx="24" fill="#FFFFFF"/>
+  <text x="226" y="690" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#123C32">右手节奏</text>
+  <text x="226" y="718" font-family="Arial, sans-serif" font-size="13" fill="#687078">扫弦入门</text>
+  <rect x="0" y="784" width="390" height="60" fill="#FFFFFF"/>
+  <text x="44" y="818" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#1E7A5A">首页</text>
+  <text x="132" y="818" font-family="Arial, sans-serif" font-size="12" fill="#687078">创作</text>
+  <text x="220" y="818" font-family="Arial, sans-serif" font-size="12" fill="#687078">曲谱</text>
+  <text x="312" y="818" font-family="Arial, sans-serif" font-size="12" fill="#687078">我的</text>
+</svg>
