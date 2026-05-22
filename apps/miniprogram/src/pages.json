@@ -41,6 +41,13 @@
         "navigationBarTitleText": "我的收藏",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/membership/index",
+      "style": {
+        "navigationBarTitleText": "会员中心",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "tabBar": {
