@@ -1,0 +1,8 @@
+<svg width="76" height="86" viewBox="0 0 76 86" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="76" height="86" rx="22" fill="#FFFFFF"/>
+  <circle cx="38" cy="31" r="16" fill="#FFF3CF"/>
+  <path d="M38 20V42" stroke="#B9824A" stroke-width="4" stroke-linecap="round"/>
+  <path d="M30 36C34 42 42 42 46 36" stroke="#B9824A" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="38" cy="28" r="4" fill="#B9824A"/>
+  <text x="20" y="68" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#123C32">练习</text>
+</svg>
