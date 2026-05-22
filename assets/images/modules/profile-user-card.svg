@@ -1,0 +1,10 @@
+<svg width="350" height="118" viewBox="0 0 350 118" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="350" height="118" rx="28" fill="#FFFFFF"/>
+  <circle cx="58" cy="59" r="32" fill="#E8F7F0"/>
+  <circle cx="58" cy="50" r="11" fill="#1E7A5A"/>
+  <path d="M38 82C42 66 53 62 58 62C63 62 74 66 78 82H38Z" fill="#1E7A5A"/>
+  <text x="108" y="48" font-family="Arial, sans-serif" font-size="20" font-weight="800" fill="#123C32">吉他创作者</text>
+  <text x="108" y="76" font-family="Arial, sans-serif" font-size="13" fill="#687078">免费用户 · 今日剩余 3 次生成</text>
+  <rect x="262" y="42" width="62" height="30" rx="15" fill="#FFF3CF"/>
+  <text x="279" y="62" font-family="Arial, sans-serif" font-size="12" font-weight="800" fill="#8A5A24">会员</text>
+</svg>
