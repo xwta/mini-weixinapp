@@ -1,0 +1,7 @@
+<svg width="350" height="54" viewBox="0 0 350 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="350" height="54" rx="27" fill="#FFFFFF"/>
+  <text x="28" y="34" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#1E7A5A">升调</text>
+  <text x="102" y="34" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#1E7A5A">降调</text>
+  <text x="176" y="34" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#1E7A5A">滚谱</text>
+  <text x="250" y="34" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#1E7A5A">节拍器</text>
+</svg>
