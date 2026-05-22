@@ -52,26 +52,26 @@
       {
         "pagePath": "pages/home/index",
         "text": "首页",
-        "iconPath": "static/tabbar/tab-home.png",
-        "selectedIconPath": "static/tabbar/tab-home-active.png"
+        "iconPath": "static/tabbar/tab-home.svg",
+        "selectedIconPath": "static/tabbar/tab-home-active.svg"
       },
       {
         "pagePath": "pages/create/index",
         "text": "创作",
-        "iconPath": "static/tabbar/tab-create.png",
-        "selectedIconPath": "static/tabbar/tab-create-active.png"
+        "iconPath": "static/tabbar/tab-create.svg",
+        "selectedIconPath": "static/tabbar/tab-create-active.svg"
       },
       {
         "pagePath": "pages/songs/index",
         "text": "曲谱",
-        "iconPath": "static/tabbar/tab-score.png",
-        "selectedIconPath": "static/tabbar/tab-score-active.png"
+        "iconPath": "static/tabbar/tab-score.svg",
+        "selectedIconPath": "static/tabbar/tab-score-active.svg"
       },
       {
         "pagePath": "pages/profile/index",
         "text": "我的",
-        "iconPath": "static/tabbar/tab-profile.png",
-        "selectedIconPath": "static/tabbar/tab-profile-active.png"
+        "iconPath": "static/tabbar/tab-profile.svg",
+        "selectedIconPath": "static/tabbar/tab-profile-active.svg"
       }
     ]
   }
