@@ -11,16 +11,25 @@
 - `function-grid-practice.svg`：练习功能入口卡片。
 - `inspiration-card.svg`：今日灵感推荐卡片。
 
+## AI 创作页模块
+
+- `ai-input-card.svg`：AI 创作输入卡片。
+- `style-selector-card.svg`：风格选择模块。
+- `difficulty-selector-card.svg`：难度选择模块。
+- `key-auto-card.svg`：调式自动推荐模块。
+
 ## 曲谱详情模块
 
 - `song-info-card.svg`：曲谱信息卡片，包含调式、BPM、变调夹、难度。
 - `song-toolbar.svg`：曲谱工具栏，包含升调、降调、滚谱、节拍器。
+- `chord-sheet-card.svg`：曲谱正文展示卡片。
 
 ## 使用示例
 
 ```html
 <image src="/assets/images/modules/hero-ai-song-card.svg" mode="widthFix" />
-<image src="/assets/images/modules/function-grid-ai-write.svg" mode="aspectFit" />
+<image src="/assets/images/modules/ai-input-card.svg" mode="widthFix" />
+<image src="/assets/images/modules/chord-sheet-card.svg" mode="widthFix" />
 ```
 
 ## 说明
