@@ -1,0 +1,9 @@
+<svg width="350" height="86" viewBox="0 0 350 86" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <text x="4" y="22" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#123C32">难度</text>
+  <rect x="0" y="40" width="104" height="46" rx="23" fill="#1E7A5A"/>
+  <text x="32" y="69" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF">新手</text>
+  <rect x="122" y="40" width="104" height="46" rx="23" fill="#FFFFFF"/>
+  <text x="154" y="69" font-family="Arial, sans-serif" font-size="14" fill="#687078">进阶</text>
+  <rect x="244" y="40" width="104" height="46" rx="23" fill="#FFFFFF"/>
+  <text x="276" y="69" font-family="Arial, sans-serif" font-size="14" fill="#687078">专业</text>
+</svg>
