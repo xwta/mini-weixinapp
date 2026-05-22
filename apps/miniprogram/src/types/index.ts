@@ -1,0 +1,60 @@
+export interface User {
+  id: number
+  nickname?: string
+  avatar_url?: string
+  membership_type: string
+  generation_quota: number
+  daily_free_quota: number
+  total_generated: number
+  created_at?: string
+}
+
+export interface SongLine {
+  chordLine?: string
+  lyricLine: string
+}
+
+export interface SongSection {
+  name: string
+  lines: SongLine[]
+}
+
+export interface AiSongResult {
+  songId?: number
+  title: string
+  style: string
+  key: string
+  bpm: number
+  capo: string
+  difficulty: string
+  strumming: string
+  chords: string[]
+  sections: SongSection[]
+  practiceTips: string[]
+}
+
+export interface Song {
+  id: number
+  title: string
+  style?: string
+  song_key?: string
+  bpm?: number
+  capo?: string
+  difficulty?: string
+  strumming?: string
+  chords_json?: string[]
+  content_json?: any
+  source_type: string
+  is_public: boolean
+  audit_status: string
+  favorite_count: number
+  view_count: number
+  created_at: string
+}
+
+export interface PageData<T> {
+  total: number
+  page: number
+  page_size: number
+  items: T[]
+}
