@@ -1,0 +1,49 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: puling-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: puling_ai
+      MYSQL_USER: puling_user
+      MYSQL_PASSWORD: puling_password
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    volumes:
+      - puling_mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7-alpine
+    container_name: puling-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - puling_redis_data:/data
+
+  server:
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+    container_name: puling-server
+    restart: unless-stopped
+    env_file:
+      - ./apps/server/.env.example
+    environment:
+      DATABASE_URL: mysql+pymysql://puling_user:puling_password@mysql:3306/puling_ai?charset=utf8mb4
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mysql
+      - redis
+
+volumes:
+  puling_mysql_data:
+  puling_redis_data:
