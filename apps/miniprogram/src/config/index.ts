@@ -1,0 +1,8 @@
+export const APP_CONFIG = {
+  apiBaseUrl: 'http://127.0.0.1:8000/api/v1',
+  appName: '谱灵 AI',
+  storageKeys: {
+    token: 'PULING_TOKEN',
+    user: 'PULING_USER',
+  },
+}
