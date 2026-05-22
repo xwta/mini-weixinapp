@@ -1,0 +1,7 @@
+<svg width="240" height="180" viewBox="0 0 240 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="240" height="180" rx="28" fill="#FAFAF6"/>
+  <circle cx="120" cy="72" r="42" fill="#FFF3CF"/>
+  <path d="M120 99L112 91C96 77 88 69 88 57C88 47 96 40 106 40C112 40 117 43 120 48C123 43 128 40 134 40C144 40 152 47 152 57C152 69 144 77 128 91L120 99Z" fill="#B9824A"/>
+  <text x="67" y="138" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#123C32">还没有收藏</text>
+  <text x="61" y="162" font-family="Arial, sans-serif" font-size="13" fill="#687078">遇到喜欢的谱，就收进歌单里</text>
+</svg>
