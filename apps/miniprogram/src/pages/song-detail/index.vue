@@ -33,7 +33,7 @@
       <view class="toolbar card">
         <view class="tool">升调</view>
         <view class="tool">降调</view>
-        <view class="tool" @tap="toggleAutoScroll">{{ autoScroll ? '暂停' : '滚谱' }}</view>
+        <view class="tool" @tap="startPractice">滚谱</view>
         <view class="tool">节拍器</view>
       </view>
 
@@ -74,7 +74,6 @@ import { useAuthStore } from '../../stores/auth'
 import type { Song, SongSection } from '../../types'
 
 const song = ref<Song | null>(null)
-const autoScroll = ref(false)
 
 const sections = computed<SongSection[]>(() => {
   const content = song.value?.content_json
@@ -112,18 +111,13 @@ async function handleFavorite() {
   uni.showToast({ title: '已收藏', icon: 'success' })
 }
 
-function toggleAutoScroll() {
-  autoScroll.value = !autoScroll.value
-  uni.showToast({ title: autoScroll.value ? '已开启滚谱' : '已暂停滚谱', icon: 'none' })
-}
-
 function shareSong() {
   uni.showToast({ title: '分享海报功能开发中', icon: 'none' })
 }
 
 function startPractice() {
-  autoScroll.value = true
-  uni.showToast({ title: '已进入练习状态', icon: 'none' })
+  if (!song.value) return
+  uni.navigateTo({ url: `/pages/practice/index?id=${song.value.id}` })
 }
 </script>
 
