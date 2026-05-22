@@ -1,0 +1,8 @@
+<svg width="350" height="138" viewBox="0 0 350 138" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="350" height="138" rx="30" fill="#123C32"/>
+  <circle cx="292" cy="36" r="58" fill="#1E7A5A" opacity="0.45"/>
+  <text x="26" y="44" font-family="Arial, sans-serif" font-size="22" font-weight="900" fill="#FFF3CF">谱灵 AI 会员</text>
+  <text x="26" y="76" font-family="Arial, sans-serif" font-size="14" fill="#E8F7F0">高级改编 · 导出图片 · 更多生成次数</text>
+  <rect x="26" y="92" width="108" height="34" rx="17" fill="#FFF3CF"/>
+  <text x="48" y="114" font-family="Arial, sans-serif" font-size="13" font-weight="800" fill="#123C32">立即开通</text>
+</svg>
