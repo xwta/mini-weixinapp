@@ -1,0 +1,11 @@
+<svg width="350" height="90" viewBox="0 0 350 90" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="350" height="90" rx="26" fill="#FFFFFF"/>
+  <text x="28" y="36" font-family="Arial, sans-serif" font-size="13" fill="#687078">调式</text>
+  <text x="28" y="66" font-family="Arial, sans-serif" font-size="22" font-weight="800" fill="#123C32">C</text>
+  <text x="106" y="36" font-family="Arial, sans-serif" font-size="13" fill="#687078">BPM</text>
+  <text x="106" y="66" font-family="Arial, sans-serif" font-size="22" font-weight="800" fill="#123C32">86</text>
+  <text x="188" y="36" font-family="Arial, sans-serif" font-size="13" fill="#687078">变调夹</text>
+  <text x="188" y="66" font-family="Arial, sans-serif" font-size="22" font-weight="800" fill="#123C32">2品</text>
+  <text x="282" y="36" font-family="Arial, sans-serif" font-size="13" fill="#687078">难度</text>
+  <text x="282" y="66" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#1E7A5A">新手</text>
+</svg>
