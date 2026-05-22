@@ -1,0 +1,9 @@
+<svg width="350" height="178" viewBox="0 0 350 178" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="350" height="178" rx="26" fill="#FFFFFF"/>
+  <text x="22" y="34" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#123C32">你的灵感</text>
+  <text x="22" y="70" font-family="Arial, sans-serif" font-size="14" fill="#A0A7AE">例如：毕业、夏天、遗憾、校园民谣</text>
+  <rect x="22" y="124" width="82" height="28" rx="14" fill="#E8F7F0"/>
+  <text x="38" y="143" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#1E7A5A">灵感模板</text>
+  <rect x="116" y="124" width="82" height="28" rx="14" fill="#FFF3CF"/>
+  <text x="132" y="143" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#8A5A24">随机一句</text>
+</svg>
