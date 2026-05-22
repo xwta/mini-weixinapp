@@ -26,6 +26,15 @@
 - [数据库设计文档](docs/DATABASE.md)
 - [开发路线图](docs/ROADMAP.md)
 - [UI 视觉规范](docs/UI-GUIDE.md)
+- [UI 设计图与前端资产](design/README.md)
+
+## UI 设计资产
+
+- [横版 Logo](assets/logo/puling-logo.svg)
+- [小程序图标](assets/logo/puling-icon.svg)
+- [首页 UI 预览](design/home-page.svg)
+- [AI 创作页 UI 预览](design/ai-create-page.svg)
+- [曲谱详情页 UI 预览](design/song-detail-page.svg)
 
 ## 推荐技术栈
 
@@ -39,7 +48,7 @@
 
 ## 当前阶段
 
-当前仓库已完成产品设计文档框架，后续可继续进入项目初始化与开发阶段。
+当前仓库已完成产品设计文档框架和基础 UI 设计资产，后续可继续进入项目初始化与开发阶段。
 
 建议下一步：
 
