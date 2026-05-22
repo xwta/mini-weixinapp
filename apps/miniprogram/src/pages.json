@@ -48,6 +48,13 @@
         "navigationBarTitleText": "会员中心",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/practice/index",
+      "style": {
+        "navigationBarTitleText": "练习模式",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "tabBar": {
