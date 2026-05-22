@@ -1,0 +1,6 @@
+<svg width="350" height="92" viewBox="0 0 350 92" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <text x="4" y="22" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#123C32">调式</text>
+  <rect x="0" y="40" width="350" height="52" rx="24" fill="#FFFFFF"/>
+  <text x="22" y="72" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#123C32">自动推荐适合弹唱的调</text>
+  <text x="292" y="72" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#1E7A5A">Auto</text>
+</svg>
