@@ -2,20 +2,20 @@
 
 ## 1. 技术栈结论
 
-后端建议采用：
+后端正式采用：
 
 ```text
-Python + FastAPI + PostgreSQL/MySQL + Redis + Celery/RQ
+Python + FastAPI + MySQL 8.0 + Redis + Celery/RQ
 ```
 
-相比 Node.js / NestJS，Python 更适合本项目的 AI 生成、提示词编排、内容审核、音频分析和后续模型能力扩展。
+相比 Node.js / NestJS，Python 更适合本项目的 AI 生成、提示词编排、内容审核、音频分析和后续模型能力扩展。数据库选择 MySQL 8.0，适合用户、订单、会员、曲谱、收藏等稳定业务数据场景。
 
 ## 2. 推荐架构
 
 ```text
 小程序前端：uni-app / Vue3
 后端 API：Python / FastAPI
-数据库：PostgreSQL 或 MySQL
+数据库：MySQL 8.0
 ORM：SQLAlchemy 2.x
 数据迁移：Alembic
 缓存：Redis
@@ -26,7 +26,7 @@ AI 能力：OpenAI / 通义千问 / DeepSeek / Claude 等
 部署：Docker + Nginx + 云服务器
 ```
 
-## 3. 为什么改成 Python
+## 3. 为什么后端用 Python
 
 ### 3.1 更适合 AI 产品
 
@@ -67,7 +67,27 @@ FastAPI 的优势：
 - 异步支持好
 - 适合 AI 接口代理与任务编排
 
-## 4. 后端目录建议
+## 4. 为什么数据库选 MySQL
+
+MySQL 适合本项目首版商业化需求：
+
+- 用户体系稳定
+- 订单支付成熟
+- 会员与次数包容易建模
+- 曲谱、收藏、生成记录都是典型关系数据
+- 团队与云服务支持更普遍
+- 部署、备份、迁移成本较低
+
+推荐版本：
+
+```text
+MySQL 8.0+
+字符集：utf8mb4
+排序规则：utf8mb4_unicode_ci
+时区：Asia/Shanghai 或 UTC 统一转换
+```
+
+## 5. 后端目录建议
 
 ```text
 apps/server/
@@ -75,6 +95,7 @@ apps/server/
 │   ├── main.py
 │   ├── core/
 │   │   ├── config.py
+│   │   ├── database.py
 │   │   ├── security.py
 │   │   └── errors.py
 │   ├── api/
@@ -118,7 +139,7 @@ apps/server/
 └── README.md
 ```
 
-## 5. 核心模块职责
+## 6. 核心模块职责
 
 | 模块 | 职责 |
 |---|---|
@@ -132,13 +153,14 @@ apps/server/
 | content_safety | 版权风险、敏感词、违规内容检测 |
 | workers | 异步任务、长耗时 AI 生成 |
 
-## 6. MVP 后端优先级
+## 7. MVP 后端优先级
 
 ### P0
 
 - FastAPI 项目初始化
 - 环境变量配置
-- 数据库连接
+- MySQL 数据库连接
+- Alembic 迁移配置
 - 用户模型
 - 微信登录接口
 - AI 写歌接口
@@ -165,7 +187,7 @@ apps/server/
 - 哼唱识别
 - 原创广场
 
-## 7. 推荐依赖
+## 8. 推荐依赖
 
 ```text
 fastapi
@@ -178,15 +200,28 @@ passlib[bcrypt]
 httpx
 redis
 celery
-pymysql 或 psycopg2-binary
+pymysql
 python-multipart
 loguru
 pytest
 ```
 
-## 8. 结论
+## 9. MySQL 连接示例
 
-本项目后端建议正式切换为 Python + FastAPI。
+```text
+mysql+pymysql://puling_user:puling_password@127.0.0.1:3306/puling_ai?charset=utf8mb4
+```
+
+环境变量建议：
+
+```env
+DATABASE_URL=mysql+pymysql://puling_user:puling_password@mysql:3306/puling_ai?charset=utf8mb4
+REDIS_URL=redis://redis:6379/0
+```
+
+## 10. 结论
+
+本项目后端建议正式切换为 Python + FastAPI，数据库选择 MySQL 8.0。
 
 原因：
 
@@ -195,7 +230,5 @@ AI 能力更好扩展
 音频能力更好接入
 项目启动更快
 API 文档天然友好
-后续模型服务不用二次拆分
+MySQL 适合用户、订单、会员、曲谱等核心业务数据
 ```
-
-如果只做普通曲谱 CRUD，NestJS 足够；但谱灵 AI 的核心是 AI 创作和音乐智能处理，因此 Python 更适合长期项目级实现。
