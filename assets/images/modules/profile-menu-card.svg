@@ -1,0 +1,12 @@
+<svg width="350" height="188" viewBox="0 0 350 188" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="350" height="188" rx="28" fill="#FFFFFF"/>
+  <text x="26" y="38" font-family="Arial, sans-serif" font-size="17" font-weight="800" fill="#123C32">我的内容</text>
+  <text x="26" y="78" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#123C32">我的作品</text>
+  <text x="300" y="78" font-family="Arial, sans-serif" font-size="18" fill="#A0A7AE">›</text>
+  <line x1="26" y1="98" x2="324" y2="98" stroke="#F1F2F3"/>
+  <text x="26" y="124" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#123C32">我的收藏</text>
+  <text x="300" y="124" font-family="Arial, sans-serif" font-size="18" fill="#A0A7AE">›</text>
+  <line x1="26" y1="144" x2="324" y2="144" stroke="#F1F2F3"/>
+  <text x="26" y="170" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#123C32">最近练习</text>
+  <text x="300" y="170" font-family="Arial, sans-serif" font-size="18" fill="#A0A7AE">›</text>
+</svg>
