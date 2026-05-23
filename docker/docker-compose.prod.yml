@@ -1,0 +1,67 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: puling-prod-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-puling_ai}
+      MYSQL_USER: ${MYSQL_USER:-puling_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    volumes:
+      - puling_mysql_data:/var/lib/mysql
+    networks:
+      - puling_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: puling-prod-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - puling_redis_data:/data
+    networks:
+      - puling_net
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    container_name: puling-prod-backend
+    restart: unless-stopped
+    env_file:
+      - ../apps/server/.env
+    environment:
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-puling_user}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-puling_ai}?charset=utf8mb4
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - puling_net
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    container_name: puling-prod-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - puling_net
+
+volumes:
+  puling_mysql_data:
+  puling_redis_data:
+
+networks:
+  puling_net:
+    driver: bridge
