@@ -1,92 +1,13 @@
 {
-  "pages": [
-    {
-      "path": "pages/home/index",
-      "style": {
-        "navigationBarTitleText": "谱灵 AI",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/create/index",
-      "style": {
-        "navigationBarTitleText": "AI 创作",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/songs/index",
-      "style": {
-        "navigationBarTitleText": "曲谱库",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/profile/index",
-      "style": {
-        "navigationBarTitleText": "我的",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/song-detail/index",
-      "style": {
-        "navigationBarTitleText": "曲谱详情",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/favorites/index",
-      "style": {
-        "navigationBarTitleText": "我的收藏",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/membership/index",
-      "style": {
-        "navigationBarTitleText": "会员中心",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/practice/index",
-      "style": {
-        "navigationBarTitleText": "练习模式",
-        "navigationStyle": "custom"
-      }
-    }
-  ],
-  "tabBar": {
-    "color": "#687078",
-    "selectedColor": "#1E7A5A",
-    "backgroundColor": "#FFFFFF",
-    "borderStyle": "white",
-    "list": [
-      {
-        "pagePath": "pages/home/index",
-        "text": "首页",
-        "iconPath": "static/tabbar/tab-home.svg",
-        "selectedIconPath": "static/tabbar/tab-home-active.svg"
-      },
-      {
-        "pagePath": "pages/create/index",
-        "text": "创作",
-        "iconPath": "static/tabbar/tab-create.svg",
-        "selectedIconPath": "static/tabbar/tab-create-active.svg"
-      },
-      {
-        "pagePath": "pages/songs/index",
-        "text": "曲谱",
-        "iconPath": "static/tabbar/tab-score.svg",
-        "selectedIconPath": "static/tabbar/tab-score-active.svg"
-      },
-      {
-        "pagePath": "pages/profile/index",
-        "text": "我的",
-        "iconPath": "static/tabbar/tab-profile.svg",
-        "selectedIconPath": "static/tabbar/tab-profile-active.svg"
-      }
-    ]
-  }
-}
+"pages":[
+{"path":"pages/home/index","style":{"navigationBarTitleText":"谱灵 AI","navigationStyle":"custom"}},
+{"path":"pages/create/index","style":{"navigationBarTitleText":"创作","navigationStyle":"custom"}},
+{"path":"pages/songs/index","style":{"navigationBarTitleText":"搜谱","navigationStyle":"custom"}},
+{"path":"pages/profile/index","style":{"navigationBarTitleText":"我的","navigationStyle":"custom"}},
+{"path":"pages/song-detail/index","style":{"navigationBarTitleText":"曲谱详情","navigationStyle":"custom"}},
+{"path":"pages/favorites/index","style":{"navigationBarTitleText":"我的收藏","navigationStyle":"custom"}},
+{"path":"pages/membership/index","style":{"navigationBarTitleText":"会员中心","navigationStyle":"custom"}},
+{"path":"pages/practice/index","style":{"navigationBarTitleText":"练习模式","navigationStyle":"custom"}},
+{"path":"pages/manual-create/index","style":{"navigationBarTitleText":"手动创建","navigationStyle":"custom"}},
+{"path":"pages/user-profile/index","style":{"navigationBarTitleText":"用户主页","navigationStyle":"custom"}}
+],"tabBar":{"color":"#687078","selectedColor":"#1E7A5A","backgroundColor":"#FFFFFF","borderStyle":"white","list":[{"pagePath":"pages/home/index","text":"首页","iconPath":"static/tabbar/tab-home.svg","selectedIconPath":"static/tabbar/tab-home-active.svg"},{"pagePath":"pages/songs/index","text":"搜谱","iconPath":"static/tabbar/tab-score.svg","selectedIconPath":"static/tabbar/tab-score-active.svg"},{"pagePath":"pages/create/index","text":"创作","iconPath":"static/tabbar/tab-create.svg","selectedIconPath":"static/tabbar/tab-create-active.svg"},{"pagePath":"pages/profile/index","text":"我的","iconPath":"static/tabbar/tab-profile.svg","selectedIconPath":"static/tabbar/tab-profile-active.svg"}]}}
