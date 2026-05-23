@@ -35,20 +35,31 @@ export interface AiSongResult {
 
 export interface Song {
   id: number
+  user_id?: number
   title: string
+  author_name?: string
+  artist_name?: string
   style?: string
   song_key?: string
   bpm?: number
   capo?: string
   difficulty?: string
   strumming?: string
+  raw_text?: string
   chords_json?: string[]
+  tags_json?: string[]
   content_json?: any
   source_type: string
+  edit_mode?: string
+  visibility?: string
   is_public: boolean
   audit_status: string
   favorite_count: number
+  like_count?: number
+  share_count?: number
+  comment_count?: number
   view_count: number
+  practice_count?: number
   created_at: string
 }
 
