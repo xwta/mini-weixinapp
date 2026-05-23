@@ -14,14 +14,16 @@ apps/miniprogram/src/api/provider.ts
 
 当前策略：
 
-```ts
-const USE_CLOUDBASE = true
+```text
+USE_CLOUDBASE = true
 ```
 
-当 `USE_CLOUDBASE=true` 时：
+调用链路：
 
 ```text
-页面/业务 API
+页面
+  ↓
+业务 API 模块
   ↓
 provider.ts
   ↓
@@ -30,53 +32,78 @@ wx.cloud.callFunction
 云函数
 ```
 
-## 3. 调用示例
-
-```ts
-import { request } from './provider'
-
-const result = await request('songs', {
-  action: 'search',
-  keyword: '晴天'
-})
-```
-
-## 4. 云函数命名
+## 3. 已接入模块
 
 ```text
-login
-songs
-ai-generate
-comments
-notifications
+Songs API        已接入
+Comments API     已接入
+Discovery API    已接入
+AI API           已接入
 ```
 
-## 5. 建议封装
-
-业务层不要直接到处写 `wx.cloud.callFunction`。
-
-推荐：
+## 4. 待接入模块
 
 ```text
-api/provider.ts       通用调用层
-api/cloudSongs.ts     曲谱业务封装
-api/cloudAuth.ts      登录业务封装
-api/cloudAi.ts        AI业务封装
+Notifications API
+Interactions API
+Auth API
 ```
 
-## 6. 错误处理
+## 5. 页面关系
 
-云函数统一返回：
+```text
+首页
+  ↓
+Discovery API
+  ↓
+discovery 云函数
 
-```json
-{
-  "code": 0,
-  "data": {},
-  "message": ""
-}
+搜谱页 / 曲谱详情页
+  ↓
+Songs API
+  ↓
+songs 云函数
+
+曲谱详情评论区
+  ↓
+Comments API
+  ↓
+comments 云函数
+
+创作页
+  ↓
+AI API
+  ↓
+ai-generate 云函数
+
+消息中心
+  ↓
+Notifications API
+  ↓
+notifications 云函数
+
+点赞收藏
+  ↓
+Interactions API
+  ↓
+interactions 云函数
 ```
 
-前端建议：
+## 6. 封装原则
+
+页面不直接调用 `wx.cloud.callFunction`。
+
+推荐链路：
+
+```text
+page.vue
+  ↓
+api/*.ts
+  ↓
+api/provider.ts
+```
+
+## 7. 错误处理
 
 ```text
 code = 0      正常返回
@@ -85,27 +112,22 @@ code = 403    提示额度不足
 code >= 500   提示服务繁忙
 ```
 
-## 7. 环境切换
+## 8. 环境切换
 
-MVP 阶段直接使用：
+MVP 阶段固定使用 CloudBase。
 
-```ts
-const USE_CLOUDBASE = true
+后续可改为环境变量控制：
+
+```text
+VITE_API_PROVIDER=cloudbase
 ```
 
-后续可改成：
-
-```ts
-const USE_CLOUDBASE = import.meta.env.VITE_API_PROVIDER === 'cloudbase'
-```
-
-## 8. 微信开发者工具配置
-
-需要：
+## 9. 微信开发者工具配置
 
 ```text
 开启云开发
 绑定 CloudBase 环境
 上传并部署云函数
 确认云数据库集合存在
+确认小程序端已初始化 wx.cloud
 ```
