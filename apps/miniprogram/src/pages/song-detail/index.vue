@@ -49,7 +49,7 @@ async function handleFavorite(){ if(!song.value)return; await ensureLogin(); awa
 async function handleLike(){ if(!song.value)return; await ensureLogin(); const res=await likeSong(song.value.id); song.value.like_count=res.like_count; uni.showToast({title:'已点赞',icon:'success'}) }
 async function handleFollow(){ if(!song.value?.user_id)return; await ensureLogin(); await followUser(song.value.user_id); uni.showToast({title:'已关注作者',icon:'success'}) }
 async function submitComment(){ if(!song.value||!commentText.value.trim())return; await ensureLogin(); const c=await createComment(song.value.id,commentText.value.trim()); comments.value.unshift(c); commentText.value=''; uni.showToast({title:'评论成功',icon:'success'}) }
-function goUserProfile(){ if(song.value?.user_id)uni.navigateTo({url:`/pages/user-profile/index?id=`}) }
+function goUserProfile(){ if(song.value?.user_id)uni.navigateTo({url:`/pages/user-profile/index?id=${song.value.user_id}`}) }
 function shareSong(){ uni.showToast({title:'分享海报功能开发中',icon:'none'}) }
 function startPractice(){ if(song.value)uni.navigateTo({url:`/pages/practice/index?id=${song.value.id}`}) }
 </script>
