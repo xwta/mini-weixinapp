@@ -1,6 +1,34 @@
 {
   "pages": [
     {
+      "path": "pages/chat/index",
+      "style": {
+        "navigationBarTitleText": "谱灵",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/community/index",
+      "style": {
+        "navigationBarTitleText": "社区",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/index",
+      "style": {
+        "navigationBarTitleText": "我的",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/record/index",
+      "style": {
+        "navigationBarTitleText": "我的记录",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/home/index",
       "style": {
         "navigationBarTitleText": "谱灵 AI",
@@ -99,36 +127,10 @@
       }
     }
   ],
-  "tabBar": {
-    "color": "#687078",
-    "selectedColor": "#1E7A5A",
-    "backgroundColor": "#FFFFFF",
-    "borderStyle": "white",
-    "list": [
-      {
-        "pagePath": "pages/home/index",
-        "text": "首页",
-        "iconPath": "static/tabbar/tab-home.png",
-        "selectedIconPath": "static/tabbar/tab-home-active.png"
-      },
-      {
-        "pagePath": "pages/songs/index",
-        "text": "搜谱",
-        "iconPath": "static/tabbar/tab-score.png",
-        "selectedIconPath": "static/tabbar/tab-score-active.png"
-      },
-      {
-        "pagePath": "pages/create/index",
-        "text": "创作",
-        "iconPath": "static/tabbar/tab-create.png",
-        "selectedIconPath": "static/tabbar/tab-create-active.png"
-      },
-      {
-        "pagePath": "pages/profile/index",
-        "text": "我的",
-        "iconPath": "static/tabbar/tab-profile.png",
-        "selectedIconPath": "static/tabbar/tab-profile-active.png"
-      }
-    ]
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "谱灵 AI",
+    "navigationBarBackgroundColor": "#FFFFFF",
+    "backgroundColor": "#F6FBF8"
   }
 }
