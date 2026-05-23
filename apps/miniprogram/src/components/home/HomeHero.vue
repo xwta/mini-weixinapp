@@ -1,14 +1,16 @@
 <template>
-  <view class="home-hero">
-    <view class="hero-logo">
-      <text class="logo-mark">♪</text>
-    </view>
-    <view class="hero-content">
-      <text class="hero-title">谱灵 AI</text>
-      <text class="hero-desc">你的 AI 吉他伙伴</text>
-    </view>
-    <view class="record-entry" @tap="emit('openRecord')">
-      <text class="record-text">记录</text>
+  <view class="home-hero-wrap">
+    <view class="home-hero">
+      <view class="hero-logo">
+        <text class="logo-mark">♪</text>
+      </view>
+      <view class="hero-content">
+        <text class="hero-title">谱灵 AI</text>
+        <text class="hero-desc">你的 AI 吉他伙伴</text>
+      </view>
+      <view class="record-entry" @tap="emit('openRecord')">
+        <text class="record-text">记录</text>
+      </view>
     </view>
   </view>
 </template>
@@ -20,6 +22,12 @@ const emit = defineEmits<{
 </script>
 
 <style scoped>
+.home-hero-wrap{
+  width:750rpx;
+  padding-top:calc(env(safe-area-inset-top) + 76rpx);
+  box-sizing:border-box;
+}
+
 .home-hero{
   width:686rpx;
   margin:0 32rpx;
@@ -41,6 +49,7 @@ const emit = defineEmits<{
   align-items:center;
   justify-content:center;
   margin-right:20rpx;
+  flex-shrink:0;
 }
 
 .logo-mark{
@@ -51,6 +60,7 @@ const emit = defineEmits<{
 
 .hero-content{
   flex:1;
+  min-width:0;
   display:flex;
   flex-direction:column;
 }
@@ -70,13 +80,14 @@ const emit = defineEmits<{
 
 .record-entry{
   height:56rpx;
-  padding:0 24rpx;
+  padding:0 22rpx;
   border-radius:999rpx;
   background:#FFFFFF;
   border:1rpx solid #E1EAE5;
   display:flex;
   align-items:center;
   justify-content:center;
+  flex-shrink:0;
 }
 
 .record-text{
