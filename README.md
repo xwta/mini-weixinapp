@@ -1,63 +1,107 @@
-# 谱灵 AI 微信小程序
+# 谱灵 AI 微信小程序 CloudBase 版
 
-谱灵 AI 是一款面向吉他弹唱用户的微信小程序产品方案，核心能力是通过 AI 自动生成吉他谱、歌词、和弦、节奏型和弹唱练习建议。
+谱灵 AI CloudBase 版是一款基于微信云开发的 AI 吉他谱创作小程序。
 
-## 产品定位
+核心目标：
 
-输入一句灵感，AI 生成一首能弹唱的歌。
+输入一句灵感，让 AI 生成一首能直接弹唱的歌。
 
-产品不是单纯复制传统曲谱库，而是围绕 AI 原创弹唱谱、AI 写歌、AI 配和弦和练习体验打造。
+## 架构
 
-## 核心功能
+```text
+微信小程序
+     ↓
+云函数
+     ↓
+云数据库
+     ↓
+云存储
+     ↓
+AI能力
+```
 
-- AI 写歌：根据主题、情绪、风格生成原创歌词和弹唱结构
-- AI 生成吉他谱：生成调式、BPM、变调夹、和弦和节奏型
-- AI 配和弦：粘贴歌词后自动匹配新手友好的吉他和弦
-- 曲谱详情：展示歌词、和弦、主歌、副歌、桥段等内容
-- 练习模式：自动滚谱、字体放大、节拍器、段落循环
-- 我的作品：保存 AI 生成记录、收藏曲谱、管理原创作品
-- 商业化：免费次数、次数包、会员、导出图片和 PDF
+## 核心能力
 
-## 文档目录
+- AI 写歌
+- AI 自动生成吉他谱
+- AI 配和弦
+- 手动创建曲谱
+- 搜索曲谱
+- 收藏
+- 点赞
+- 评论
+- 关注
+- 练习模式
 
-- [产品需求文档 PRD](docs/PRD.md)
-- [页面原型文档](docs/WIREFRAME.md)
-- [接口设计文档](docs/API.md)
-- [数据库设计文档](docs/DATABASE.md)
-- [开发路线图](docs/ROADMAP.md)
-- [UI 视觉规范](docs/UI-GUIDE.md)
-- [技术栈方案](docs/TECH-STACK.md)
-- [UI 设计图与前端资产](design/README.md)
+## 技术栈
 
-## UI 设计资产
+```text
+前端:
+uni-app
+Vue3
+TypeScript
 
-- [横版 Logo](assets/logo/puling-logo.svg)
-- [小程序图标](assets/logo/puling-icon.svg)
-- [首页 UI 预览](design/home-page.svg)
-- [AI 创作页 UI 预览](design/ai-create-page.svg)
-- [曲谱详情页 UI 预览](design/song-detail-page.svg)
+后端:
+微信云函数 Node.js
 
-## 推荐技术栈
+数据库:
+微信云数据库
 
-- 前端：uni-app / Vue3
-- 后端：Python / FastAPI
-- 数据库：MySQL 8.0
-- ORM：SQLAlchemy 2.x
-- 数据迁移：Alembic
-- 缓存：Redis
-- 异步任务：Celery 或 RQ
-- 存储：腾讯云 COS / 阿里云 OSS
-- 支付：微信支付
-- AI 能力：OpenAI / 通义千问 / DeepSeek / Claude 等
+存储:
+微信云存储
 
-## 当前阶段
+AI:
+OpenAI API
+```
 
-当前仓库已完成产品设计文档框架、基础 UI 设计资产和 Python + FastAPI + MySQL 技术栈方案，后续可继续进入项目初始化与开发阶段。
+## 项目结构
 
-建议下一步：
+```text
+apps/
+   miniprogram/
 
-1. 初始化小程序前端项目。
-2. 初始化 Python FastAPI 后端服务项目。
-3. 配置 MySQL 8.0 与 Alembic 数据库迁移。
-4. 接入 AI 生成接口。
-5. 完成 MVP 核心闭环。
+cloudbase/
+   cloudfunctions/
+   database/
+   cloudbaserc.json
+
+assets/
+docs/
+```
+
+## 快速启动
+
+安装依赖：
+
+```bash
+npm install
+```
+
+初始化云环境：
+
+```bash
+cloudbase login
+cloudbase init
+```
+
+部署：
+
+```bash
+cloudbase deploy
+```
+
+## 文档
+
+- CLOUDBASE_PRODUCT.md
+- CLOUDBASE_API.md
+- CLOUDBASE_DATABASE.md
+
+## 分支说明
+
+```text
+main
+  企业级 FastAPI + MySQL + 云托管方案
+
+cloudbase-native
+  微信云开发原生方案
+```
