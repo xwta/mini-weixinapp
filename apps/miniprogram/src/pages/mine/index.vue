@@ -1,34 +1,34 @@
 <template>
   <view class="page">
     <view class="profile-card">
-      <view class="avatar">谱</view>
+      <view class="avatar">{{ avatarText }}</view>
       <view class="profile-main">
-        <text class="nickname">谱灵用户</text>
-        <text class="desc">AI 吉他创作者</text>
+        <text class="nickname">{{ auth.user?.nickname || '谱灵用户' }}</text>
+        <text class="desc">{{ auth.isLoggedIn ? 'AI 吉他创作者' : '登录后同步作品、收藏和额度' }}</text>
       </view>
-      <view class="edit-btn">编辑</view>
+      <view class="edit-btn" @tap="auth.isLoggedIn ? refreshUser() : handleLogin()">{{ auth.isLoggedIn ? '刷新' : '登录' }}</view>
     </view>
 
-    <view class="quota-card">
+    <view class="quota-card" @tap="goMembership">
       <view>
         <text class="quota-title">AI 额度</text>
-        <text class="quota-desc">今日还可生成 5 次</text>
+        <text class="quota-desc">今日还可生成 {{ auth.user?.generation_quota || 0 }} 次</text>
       </view>
       <view class="quota-action">升级</view>
     </view>
 
     <view class="stats-row">
       <view class="stat-item">
-        <text class="stat-num">12</text>
+        <text class="stat-num">{{ stats.works }}</text>
         <text class="stat-label">作品</text>
       </view>
       <view class="stat-item">
-        <text class="stat-num">36</text>
+        <text class="stat-num">{{ stats.favorites }}</text>
         <text class="stat-label">收藏</text>
       </view>
       <view class="stat-item">
-        <text class="stat-num">128</text>
-        <text class="stat-label">获赞</text>
+        <text class="stat-num">{{ stats.liked }}</text>
+        <text class="stat-label">点赞</text>
       </view>
     </view>
 
@@ -42,24 +42,89 @@
       </view>
     </view>
 
+    <view v-if="auth.isLoggedIn" class="logout-btn" @tap="handleLogout">退出登录</view>
+
     <AppBottomTab active="mine" @change="handleTabChange" />
   </view>
 </template>
 
 <script setup lang="ts">
+import { computed, reactive } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import AppBottomTab from '@/components/home/AppBottomTab.vue'
+import { loginWithWechatProfile } from '@/api/auth'
+import { getFavorites } from '@/api/favorites'
+import { getMyLikedSongs } from '@/api/social'
+import { getMySongs } from '@/api/songs'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
+const stats = reactive({ works: 0, favorites: 0, liked: 0 })
+
+const avatarText = computed(() => (auth.user?.nickname || '谱').slice(0, 1))
 
 const menus = [
-  { icon: '♪', label: '我的作品', path: '/pages/mine/works' },
-  { icon: '♡', label: '我的收藏', path: '/pages/mine/favorites' },
-  { icon: '◎', label: '我的发布', path: '/pages/mine/posts' },
-  { icon: '▶', label: '练习记录', path: '/pages/mine/practice' },
+  { icon: '♪', label: '我的作品', path: '/pages/record/index?type=create' },
+  { icon: '♡', label: '我的收藏', path: '/pages/favorites/index' },
+  { icon: '◎', label: '我的订单', path: '/pages/orders/index' },
+  { icon: '▶', label: '练习记录', path: '/pages/record/index?type=practice' },
   { icon: '✉', label: '消息通知', path: '/pages/notifications/index' },
-  { icon: '⚙', label: '设置中心', path: '/pages/settings/index' },
+  { icon: '⚙', label: '会员中心', path: '/pages/membership/index' },
 ]
 
+onShow(() => {
+  auth.restore()
+  if (auth.isLoggedIn) loadStats()
+})
+
+async function handleLogin() {
+  await loginWithWechatProfile({ nickname: '谱灵用户' })
+  await loadStats()
+  uni.showToast({ title: '登录成功', icon: 'success' })
+}
+
+async function refreshUser() {
+  await loginWithWechatProfile({
+    nickname: auth.user?.nickname || '谱灵用户',
+    avatar_url: auth.user?.avatar_url || '',
+  })
+  await loadStats()
+  uni.showToast({ title: '已同步', icon: 'success' })
+}
+
+async function loadStats() {
+  try {
+    const [works, favorites, liked] = await Promise.all([
+      getMySongs(1, 1),
+      getFavorites(1, 1),
+      getMyLikedSongs(1, 1),
+    ])
+    stats.works = works.total || 0
+    stats.favorites = favorites.total || 0
+    stats.liked = liked.total || 0
+  } catch (error) {
+    console.log('mine stats load failed', error)
+  }
+}
+
+function handleLogout() {
+  auth.logout()
+  stats.works = 0
+  stats.favorites = 0
+  stats.liked = 0
+  uni.showToast({ title: '已退出', icon: 'none' })
+}
+
 function openMenu(path: string) {
+  if (!auth.isLoggedIn && !path.includes('membership')) {
+    handleLogin()
+    return
+  }
   uni.navigateTo({ url: path })
+}
+
+function goMembership() {
+  uni.navigateTo({ url: '/pages/membership/index' })
 }
 
 function handleTabChange(value: string) {
@@ -242,5 +307,19 @@ function handleTabChange(value: string) {
 .menu-arrow {
   font-size: 38rpx;
   color: #A4AEA8;
+}
+
+.logout-btn {
+  width: 686rpx;
+  height: 88rpx;
+  margin-top: 24rpx;
+  border-radius: 999rpx;
+  color: #E5484D;
+  background: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  font-weight: 700;
 }
 </style>
