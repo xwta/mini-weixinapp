@@ -1,0 +1,22 @@
+{
+  "envId": "your-cloudbase-env-id",
+  "framework": {
+    "name": "puling-ai-cloudbase",
+    "plugins": {
+      "client": {
+        "use": "@cloudbase/framework-plugin-website",
+        "inputs": {
+          "outputPath": "apps/miniprogram/dist/build/mp-weixin",
+          "cloudPath": "/"
+        }
+      }
+    }
+  },
+  "functions": [
+    { "name": "login", "timeout": 10, "runtime": "Nodejs18.15" },
+    { "name": "songs", "timeout": 10, "runtime": "Nodejs18.15" },
+    { "name": "ai-generate", "timeout": 60, "runtime": "Nodejs18.15" },
+    { "name": "comments", "timeout": 10, "runtime": "Nodejs18.15" },
+    { "name": "notifications", "timeout": 10, "runtime": "Nodejs18.15" }
+  ]
+}
