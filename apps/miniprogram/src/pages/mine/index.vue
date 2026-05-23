@@ -127,10 +127,14 @@ function goMembership() {
   uni.navigateTo({ url: '/pages/membership/index' })
 }
 
+function goMain(url: string) {
+  uni.reLaunch({ url })
+}
+
 function handleTabChange(value: string) {
   if (value === 'mine') return
-  if (value === 'chat') uni.switchTab({ url: '/pages/chat/index' })
-  if (value === 'community') uni.switchTab({ url: '/pages/community/index' })
+  if (value === 'chat') goMain('/pages/chat/index')
+  if (value === 'community') goMain('/pages/community/index')
 }
 </script>
 
@@ -139,7 +143,7 @@ function handleTabChange(value: string) {
   width: 750rpx;
   min-height: 100vh;
   background: #F6FBF8;
-  padding: 32rpx 32rpx 144rpx;
+  padding: calc(env(safe-area-inset-top) + 52rpx) 32rpx 144rpx;
   box-sizing: border-box;
 }
 
