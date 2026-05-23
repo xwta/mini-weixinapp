@@ -187,10 +187,14 @@ function sharePost() {
   uni.showToast({ title: '分享功能待接入', icon: 'none' })
 }
 
+function goMain(url: string) {
+  uni.reLaunch({ url })
+}
+
 function handleTabChange(value: string) {
   if (value === 'community') return
-  if (value === 'chat') uni.switchTab({ url: '/pages/chat/index' })
-  if (value === 'mine') uni.switchTab({ url: '/pages/mine/index' })
+  if (value === 'chat') goMain('/pages/chat/index')
+  if (value === 'mine') goMain('/pages/mine/index')
 }
 </script>
 
@@ -204,7 +208,7 @@ function handleTabChange(value: string) {
 }
 
 .top-area {
-  padding-top: 24rpx;
+  padding-top: calc(env(safe-area-inset-top) + 52rpx);
 }
 
 .page-title-row {
