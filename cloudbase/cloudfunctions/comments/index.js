@@ -15,7 +15,7 @@ async function getCurrentUser(openid) {
 
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext()
-  const openid = wxContext.OPENID
+  const openid = wxContext.OPENID || event.openid || "debug-openid"
   const action = event.action || 'list'
   const now = new Date()
 

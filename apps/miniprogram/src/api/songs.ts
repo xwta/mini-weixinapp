@@ -11,13 +11,21 @@ export interface SongSearchParams {
   page_size?: number
 }
 
-function normalizePage<T>(result: any): PageData<T> {
-  const data = result?.data || result
+function normalizeSong(item: any): Song {
   return {
-    total: data?.total || data?.items?.length || 0,
+    ...item,
+    id: item?.id || item?._id,
+  } as Song
+}
+
+function normalizePage<T extends Record<string, any>>(result: any): PageData<T> {
+  const data = result?.data || result
+  const items = (data?.items || []).map((item: any) => ({ ...item, id: item?.id || item?._id }))
+  return {
+    total: data?.total || items.length || 0,
     page: data?.page || 1,
-    page_size: data?.page_size || data?.items?.length || 20,
-    items: data?.items || [],
+    page_size: data?.page_size || items.length || 20,
+    items,
   }
 }
 
@@ -42,7 +50,7 @@ export async function searchSongs(params: SongSearchParams = {}) {
 
 export async function getSongDetail(songId: number | string) {
   const result = await request('songs', { action: 'detail', id: songId })
-  return (result?.data || result) as Song
+  return normalizeSong(result?.data || result)
 }
 
 export async function deleteSong(songId: number | string) {

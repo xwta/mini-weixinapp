@@ -1,8 +1,18 @@
 <script setup lang="ts">
 import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
 import { useAuthStore } from './stores/auth'
+import { APP_CONFIG } from './config'
 
 onLaunch(() => {
+  // #ifdef MP-WEIXIN
+  if (wx?.cloud) {
+    wx.cloud.init({
+      env: APP_CONFIG.cloudEnv || 'DYNAMIC_CURRENT_ENV',
+      traceUser: true,
+    })
+  }
+  // #endif
+
   const auth = useAuthStore()
   auth.restore()
 })

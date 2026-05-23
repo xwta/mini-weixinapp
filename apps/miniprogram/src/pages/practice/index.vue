@@ -72,7 +72,7 @@ const sections = computed<SongSection[]>(() => {
 })
 
 onLoad(async (query) => {
-  const id = Number(query?.id)
+  const id = String(query?.id || "")
   if (id) song.value = await getSongDetail(id)
 })
 

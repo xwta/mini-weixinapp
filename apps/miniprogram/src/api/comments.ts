@@ -2,7 +2,7 @@ import { request } from './provider'
 
 export interface CommentItem {
   _id?: string
-  id?: number
+  id?: string | number
   user_id: string | number
   song_id: string | number
   parent_id?: string | number | null
@@ -13,12 +13,20 @@ export interface CommentItem {
   created_at: string
 }
 
+function normalizeComment(item: any): CommentItem {
+  return {
+    ...item,
+    id: item?.id || item?._id,
+  }
+}
+
 export async function getSongComments(songId: number | string) {
   const result = await request('comments', {
     action: 'list',
     song_id: songId,
   })
-  return result?.data?.items || result?.items || []
+  const items = result?.data?.items || result?.items || []
+  return items.map((item: any) => normalizeComment(item))
 }
 
 export async function createComment(songId: number | string, content: string, parentId?: number | string | null) {
@@ -28,7 +36,7 @@ export async function createComment(songId: number | string, content: string, pa
     content,
     parent_id: parentId || null,
   })
-  return result?.data || result
+  return normalizeComment(result?.data || result)
 }
 
 export async function removeComment(commentId: string) {

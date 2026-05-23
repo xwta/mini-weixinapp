@@ -1,4 +1,4 @@
-import { request } from '../utils/request'
+import { request } from './provider'
 import type { PageData, Song, User } from '../types'
 
 export interface UserProfile {
@@ -11,43 +11,71 @@ export interface UserProfile {
   }
 }
 
-export function likeSong(songId: number) {
-  return request<{ liked: boolean; like_count: number }>(`/songs/${songId}/like`, {
-    method: 'POST',
+function normalizeSong(item: any): Song {
+  return {
+    ...item,
+    id: item?.id || item?._id,
+  } as Song
+}
+
+export function likeSong(songId: number | string) {
+  return request<{ liked: boolean; like_count: number }>('interactions', {
+    action: 'likeSong',
+    song_id: songId,
   })
 }
 
-export function unlikeSong(songId: number) {
-  return request<{ liked: boolean; like_count: number }>(`/songs/${songId}/like`, {
-    method: 'DELETE',
+export function unlikeSong(songId: number | string) {
+  return request<{ liked: boolean; like_count: number }>('interactions', {
+    action: 'unlikeSong',
+    song_id: songId,
   })
 }
 
-export function getMyLikedSongs(page = 1, pageSize = 20) {
-  return request<PageData<Song>>('/users/me/likes', {
-    params: { page, page_size: pageSize },
+export async function getMyLikedSongs(page = 1, pageSize = 20) {
+  const result = await request<PageData<Song>>('interactions', {
+    action: 'listLiked',
+    page,
+    page_size: pageSize,
+  })
+
+  return {
+    ...result,
+    items: (result?.items || []).map((item) => normalizeSong(item)),
+  }
+}
+
+export function followUser(userId: number | string) {
+  return request<{ following: boolean }>('songs', {
+    action: 'follow',
+    user_id: userId,
   })
 }
 
-export function followUser(userId: number) {
-  return request<{ following: boolean }>(`/users/${userId}/follow`, {
-    method: 'POST',
+export function unfollowUser(userId: number | string) {
+  return request<{ following: boolean }>('songs', {
+    action: 'unfollow',
+    user_id: userId,
   })
 }
 
-export function unfollowUser(userId: number) {
-  return request<{ following: boolean }>(`/users/${userId}/follow`, {
-    method: 'DELETE',
+export function getUserProfile(userId: number | string) {
+  return request<UserProfile>('songs', {
+    action: 'userProfile',
+    user_id: userId,
   })
 }
 
-export function getUserProfile(userId: number) {
-  return request<UserProfile>(`/users/${userId}/profile`, { auth: false })
-}
-
-export function getUserSongs(userId: number, page = 1, pageSize = 20) {
-  return request<PageData<Song>>(`/users/${userId}/songs`, {
-    auth: false,
-    params: { page, page_size: pageSize },
+export async function getUserSongs(userId: number | string, page = 1, pageSize = 20) {
+  const result = await request<PageData<Song>>('songs', {
+    action: 'userSongs',
+    user_id: userId,
+    page,
+    page_size: pageSize,
   })
+
+  return {
+    ...result,
+    items: (result?.items || []).map((item) => normalizeSong(item)),
+  }
 }

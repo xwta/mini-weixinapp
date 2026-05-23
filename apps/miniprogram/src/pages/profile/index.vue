@@ -53,6 +53,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import AppNavBar from '../../components/AppNavBar.vue'
 import { loginWithWechatProfile } from '../../api/auth'
 import { useAuthStore } from '../../stores/auth'
@@ -60,6 +61,18 @@ import { useAuthStore } from '../../stores/auth'
 const auth = useAuthStore()
 
 const avatarText = computed(() => (auth.user?.nickname || '谱').slice(0, 1))
+
+onShow(async () => {
+  if (!auth.isLoggedIn) return
+  try {
+    await loginWithWechatProfile({
+      nickname: auth.user?.nickname || '谱灵用户',
+      avatar_url: auth.user?.avatar_url || '',
+    })
+  } catch (_error) {
+    // 静默失败，避免打断页面浏览
+  }
+})
 
 async function handleLogin() {
   await loginWithWechatProfile({ nickname: '谱灵用户' })

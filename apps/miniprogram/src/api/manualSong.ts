@@ -1,4 +1,4 @@
-import { request } from '../utils/request'
+import { request } from './provider'
 import type { Song } from '../types'
 
 export interface ManualSongPayload {
@@ -15,16 +15,24 @@ export interface ManualSongPayload {
   is_public?: boolean
 }
 
-export function createManualSong(payload: ManualSongPayload) {
-  return request<Song>('/songs/manual', {
-    method: 'POST',
-    data: payload,
-    showLoading: true,
-  })
+function normalizeSong(item: any): Song {
+  return {
+    ...item,
+    id: item?.id || item?._id,
+  } as Song
 }
 
-export function publishSong(songId:number){
-  return request<Song>(`/songs/${songId}/publish`,{
-    method:'POST'
+export async function createManualSong(payload: ManualSongPayload) {
+  const result = await request<Song>('songs', {
+    action: 'manualCreate',
+    ...payload,
+  })
+  return normalizeSong(result)
+}
+
+export function publishSong(songId: number | string) {
+  return request<{ published: boolean }>('songs', {
+    action: 'publish',
+    id: songId,
   })
 }

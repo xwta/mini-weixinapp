@@ -1,0 +1,9 @@
+{
+  "name": "puling-ai-generate",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@cloudbase/node-sdk": "^3.17.0",
+    "wx-server-sdk": "latest"
+  }
+}

@@ -81,6 +81,26 @@ npm run dev:mp-weixin
 npm run build:mp-weixin
 ```
 
+## 微信开发者工具预览
+
+项目根目录已经配置：
+
+```text
+project.config.json -> miniprogramRoot: dist/build/mp-weixin
+```
+
+所以先执行一次构建，再在微信开发者工具里导入目录：
+
+```text
+apps/miniprogram
+```
+
+如需直接导入产物目录，也可以导入：
+
+```text
+apps/miniprogram/dist/build/mp-weixin
+```
+
 ## 后端接口地址
 
 当前配置在：

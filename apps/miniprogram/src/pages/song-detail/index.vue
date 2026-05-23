@@ -43,13 +43,13 @@ const comments = ref<CommentItem[]>([])
 const commentText = ref('')
 const sections = computed<SongSection[]>(() => { const c=song.value?.content_json; if(c?.sections?.length)return c.sections; return [{name:'主歌',lines:[{chordLine:'C              G',lyricLine:'这里会显示歌词和和弦'},{chordLine:'Am             F',lyricLine:'生成后可以直接弹唱练习'}]}] })
 const practiceTips = computed<string[]>(() => song.value?.content_json?.practiceTips || [])
-onLoad(async (query) => { const id=Number(query?.id); if(id){ song.value=await getSongDetail(id); comments.value=await getSongComments(id) } })
+onLoad(async (query) => { const id = String(query?.id || ""); if (id) { song.value = await getSongDetail(id); comments.value = await getSongComments(id) } })
 async function ensureLogin(){ const auth=useAuthStore(); if(auth.isLoggedIn)return; await loginWithWechatProfile({nickname:'谱灵用户'}) }
 async function handleFavorite(){ if(!song.value)return; await ensureLogin(); await addFavorite(song.value.id); song.value.favorite_count+=1; uni.showToast({title:'已收藏',icon:'success'}) }
 async function handleLike(){ if(!song.value)return; await ensureLogin(); const res=await likeSong(song.value.id); song.value.like_count=res.like_count; uni.showToast({title:'已点赞',icon:'success'}) }
 async function handleFollow(){ if(!song.value?.user_id)return; await ensureLogin(); await followUser(song.value.user_id); uni.showToast({title:'已关注作者',icon:'success'}) }
 async function submitComment(){ if(!song.value||!commentText.value.trim())return; await ensureLogin(); const c=await createComment(song.value.id,commentText.value.trim()); comments.value.unshift(c); commentText.value=''; uni.showToast({title:'评论成功',icon:'success'}) }
-function goUserProfile(){ if(song.value?.user_id)uni.navigateTo({url:`/pages/user-profile/index?id=${song.value.user_id}`}) }
+function goUserProfile(){ if(song.value?.user_id)uni.navigateTo({url:`/pages/user-profile/index?id=`}) }
 function shareSong(){ uni.showToast({title:'分享海报功能开发中',icon:'none'}) }
 function startPractice(){ if(song.value)uni.navigateTo({url:`/pages/practice/index?id=${song.value.id}`}) }
 </script>

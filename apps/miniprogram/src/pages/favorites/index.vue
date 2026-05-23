@@ -43,7 +43,7 @@ async function loadFavorites() {
   songs.value = res.items
 }
 
-async function handleRemove(songId: number) {
+async function handleRemove(songId: number | string) {
   await removeFavorite(songId)
   songs.value = songs.value.filter((song) => song.id !== songId)
   uni.showToast({ title: '已取消收藏', icon: 'none' })

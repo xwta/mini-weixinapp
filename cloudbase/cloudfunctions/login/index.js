@@ -7,7 +7,7 @@ const users = db.collection('users')
 
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext()
-  const openid = wxContext.OPENID
+  const openid = wxContext.OPENID || event.openid || "debug-openid"
   const now = new Date()
 
   const existed = await users.where({ openid }).limit(1).get()

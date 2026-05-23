@@ -1,5 +1,5 @@
 export interface User {
-  id: number
+  id: string | number
   nickname?: string
   avatar_url?: string
   membership_type: string
@@ -20,7 +20,7 @@ export interface SongSection {
 }
 
 export interface AiSongResult {
-  songId?: number
+  songId?: string | number
   title: string
   style: string
   key: string
@@ -34,8 +34,8 @@ export interface AiSongResult {
 }
 
 export interface Song {
-  id: number
-  user_id?: number
+  id: string | number
+  user_id?: string | number
   title: string
   author_name?: string
   artist_name?: string
