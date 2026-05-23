@@ -4,9 +4,9 @@
     <text class="song-chords">{{ chords }}</text>
 
     <view class="actions">
-      <view class="action-btn">查看曲谱</view>
-      <view class="action-btn">开始练习</view>
-      <view class="action-btn">保存</view>
+      <view class="action-btn" @tap="$emit('view')">查看曲谱</view>
+      <view class="action-btn" @tap="$emit('practice')">开始练习</view>
+      <view class="action-btn" @tap="$emit('save')">保存</view>
     </view>
   </view>
 </template>
@@ -17,8 +17,14 @@ withDefaults(defineProps<{
   chords?: string
 }>(), {
   title: '毕业以后',
-  chords: 'C · G · Am · F'
+  chords: 'C · G · Am · F',
 })
+
+defineEmits<{
+  view: []
+  practice: []
+  save: []
+}>()
 </script>
 
 <style scoped>
@@ -31,6 +37,7 @@ withDefaults(defineProps<{
  background:#FFFFFF;
  border:1rpx solid #E8EFEA;
  box-shadow:0 8rpx 28rpx rgba(18,52,36,.06);
+ animation:cardIn .22s ease-out;
 }
 
 .song-title{
@@ -63,5 +70,16 @@ withDefaults(defineProps<{
  display:flex;
  align-items:center;
  justify-content:center;
+ transition:transform .15s ease, opacity .15s ease;
+}
+
+.action-btn:active{
+ transform:scale(.96);
+ opacity:.82;
+}
+
+@keyframes cardIn{
+ from{opacity:0;transform:translateY(12rpx)}
+ to{opacity:1;transform:translateY(0)}
 }
 </style>
