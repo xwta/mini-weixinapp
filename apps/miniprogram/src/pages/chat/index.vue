@@ -206,10 +206,14 @@ function openRecord() {
   uni.navigateTo({ url: '/pages/record/index' })
 }
 
+function goMain(url: string) {
+  uni.reLaunch({ url })
+}
+
 function handleTabChange(value: string) {
   if (value === 'chat') return
-  if (value === 'community') uni.switchTab({ url: '/pages/community/index' })
-  if (value === 'mine') uni.switchTab({ url: '/pages/mine/index' })
+  if (value === 'community') goMain('/pages/community/index')
+  if (value === 'mine') goMain('/pages/mine/index')
 }
 </script>
 
@@ -224,7 +228,6 @@ function handleTabChange(value: string) {
 
 .content {
   height: calc(100vh - 220rpx);
-  padding-top: 24rpx;
   box-sizing: border-box;
 }
 
