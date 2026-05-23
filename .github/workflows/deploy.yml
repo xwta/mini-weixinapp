@@ -1,0 +1,48 @@
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install frontend dependencies
+        run: |
+          cd apps/miniprogram
+          npm install
+
+      - name: Build frontend
+        run: |
+          cd apps/miniprogram
+          npm run build:h5
+
+      - name: Install backend dependencies
+        run: |
+          cd apps/server
+          pip install -r requirements.txt
+
+      - name: Run backend tests
+        run: |
+          pytest tests/backend
+
+      - name: Build Docker Images
+        run: |
+          docker build -f docker/Dockerfile.backend -t puling-backend .
+          docker build -f docker/Dockerfile.frontend -t puling-frontend .
