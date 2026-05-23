@@ -1,0 +1,8 @@
+<svg width="360" height="56" viewBox="0 0 360 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="360" height="56" fill="white"/>
+  <rect x="8" y="8" width="344" height="40" rx="16" fill="white" stroke="#E8EFEA"/>
+  <path d="M30 20l-8 8 8 8" stroke="#17231E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="180" y="34" text-anchor="middle" font-size="17" font-weight="700" font-family="Arial, sans-serif" fill="#17231E">我的记录</text>
+  <circle cx="326" cy="28" r="8" stroke="#17231E" stroke-width="2"/>
+  <path d="M332 34l8 8" stroke="#17231E" stroke-width="2" stroke-linecap="round"/>
+</svg>
