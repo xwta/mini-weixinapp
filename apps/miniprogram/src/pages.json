@@ -90,31 +90,5 @@
     "navigationBarTitleText": "谱灵 AI",
     "navigationBarBackgroundColor": "#FFFFFF",
     "backgroundColor": "#F6FBF8"
-  },
-  "tabBar": {
-    "color": "#687078",
-    "selectedColor": "#1E7A5A",
-    "backgroundColor": "#FFFFFF",
-    "borderStyle": "white",
-    "list": [
-      {
-        "pagePath": "pages/chat/index",
-        "text": "谱灵",
-        "iconPath": "static/tabbar/tab-home.png",
-        "selectedIconPath": "static/tabbar/tab-home-active.png"
-      },
-      {
-        "pagePath": "pages/community/index",
-        "text": "社区",
-        "iconPath": "static/tabbar/tab-score.png",
-        "selectedIconPath": "static/tabbar/tab-score-active.png"
-      },
-      {
-        "pagePath": "pages/mine/index",
-        "text": "我的",
-        "iconPath": "static/tabbar/tab-profile.png",
-        "selectedIconPath": "static/tabbar/tab-profile-active.png"
-      }
-    ]
   }
 }
