@@ -1,30 +1,43 @@
 <template>
   <view class="page">
     <scroll-view class="content" scroll-y :scroll-top="scrollTop" :scroll-with-animation="true">
-      <HomeHero @openRecord="openRecord" />
+      <view v-if="booting" class="skeleton-page">
+        <view class="skeleton-hero skeleton-block" />
+        <view class="skeleton-grid">
+          <view v-for="item in 4" :key="item" class="skeleton-card skeleton-block" />
+        </view>
+        <view class="skeleton-chat">
+          <view class="skeleton-avatar skeleton-block" />
+          <view class="skeleton-bubble skeleton-block" />
+        </view>
+      </view>
 
-      <view class="section-space" />
+      <view v-else class="page-content">
+        <HomeHero @openRecord="openRecord" />
 
-      <HomeModeGrid :items="modeItems" @select="selectMode" />
+        <view class="section-space" />
 
-      <view class="chat-area">
-        <ChatBubble
-          v-for="message in messages"
-          :key="message.id"
-          :role="message.role"
-          :content="message.content"
-          @selectPrompt="fillPrompt"
-          @start="focusInput"
-        />
+        <HomeModeGrid :items="modeItems" @select="selectMode" />
 
-        <AiResultCard
-          v-if="lastResult"
-          :title="lastResult.title"
-          :chords="lastResult.chords"
-          @view="openSong(lastResult.songId)"
-          @practice="startPractice(lastResult.songId)"
-          @save="saveResult"
-        />
+        <view class="chat-area">
+          <ChatBubble
+            v-for="message in messages"
+            :key="message.id"
+            :role="message.role"
+            :content="message.content"
+            @selectPrompt="fillPrompt"
+            @start="focusInput"
+          />
+
+          <AiResultCard
+            v-if="lastResult"
+            :title="lastResult.title"
+            :chords="lastResult.chords"
+            @view="openSong(lastResult.songId)"
+            @practice="startPractice(lastResult.songId)"
+            @save="saveResult"
+          />
+        </view>
       </view>
     </scroll-view>
 
@@ -52,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import HomeHero from '@/components/home/HomeHero.vue'
 import HomeModeGrid from '@/components/home/HomeModeGrid.vue'
 import ChatBubble from '@/components/home/ChatBubble.vue'
@@ -81,6 +94,7 @@ type ModeValue = 'song' | 'search' | 'chord' | 'practice'
 const inputText = ref('')
 const activeMode = ref<ModeValue>('song')
 const loading = ref(false)
+const booting = ref(true)
 const scrollTop = ref(0)
 const inputFocus = ref(false)
 const placeholder = ref('输入你的音乐灵感...')
@@ -100,6 +114,12 @@ const modeItems = [
   { icon: '♬', label: '配和弦', value: 'chord', badge: '最近', desc: '为旋律智能匹配和弦', statusIcon: '♬', statusText: 'C G Am F' },
   { icon: '▶', label: '练习', value: 'practice', badge: '今日', desc: '跟着谱练，快速提升', statusIcon: '◷', statusText: '12 分钟' },
 ]
+
+onMounted(() => {
+  setTimeout(() => {
+    booting.value = false
+  }, 360)
+})
 
 function selectMode(value: string) {
   activeMode.value = value as ModeValue
@@ -255,6 +275,70 @@ function handleTabChange(value: string) {
   box-sizing: border-box;
 }
 
+.page-content {
+  animation: contentIn 0.32s ease both;
+}
+
+.skeleton-page {
+  width: 750rpx;
+  padding: calc(env(safe-area-inset-top) + 44rpx) 32rpx 0;
+  box-sizing: border-box;
+}
+
+.skeleton-block {
+  position: relative;
+  overflow: hidden;
+  background: #EAF1ED;
+}
+
+.skeleton-block::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60%;
+  width: 60%;
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.64), rgba(255,255,255,0));
+  animation: shimmer 1.18s ease-in-out infinite;
+}
+
+.skeleton-hero {
+  width: 686rpx;
+  height: 110rpx;
+  border-radius: 30rpx;
+}
+
+.skeleton-grid {
+  margin-top: 32rpx;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18rpx;
+}
+
+.skeleton-card {
+  height: 258rpx;
+  border-radius: 28rpx;
+}
+
+.skeleton-chat {
+  margin-top: 46rpx;
+  display: flex;
+  align-items: flex-start;
+}
+
+.skeleton-avatar {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 999rpx;
+  margin-right: 20rpx;
+}
+
+.skeleton-bubble {
+  width: 548rpx;
+  height: 360rpx;
+  border-radius: 28rpx;
+}
+
 .section-space {
   height: 32rpx;
 }
@@ -349,5 +433,15 @@ function handleTabChange(value: string) {
 
 .send-btn.loading {
   opacity: .72;
+}
+
+@keyframes contentIn {
+  from { opacity: 0; transform: translateY(20rpx); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  from { transform: translateX(0); }
+  to { transform: translateX(280%); }
 }
 </style>
