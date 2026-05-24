@@ -299,9 +299,18 @@ function handleTabChange(value: string) {
 
 <style scoped>
 .page {
+  --page-bg: #F6FBF8;
+  --card-bg: rgba(255, 255, 255, 0.96);
+  --control-bg: rgba(255, 255, 255, 0.94);
+  --line-soft: #E8EFEA;
+  --text-main: #17231E;
+  --text-strong: #101821;
+  --brand: #0BA45A;
+  --brand-bright: #0BB861;
+  --skeleton-bg: #EAF1ED;
   min-height: 100vh;
   width: 750rpx;
-  background: #F6FBF8;
+  background: var(--page-bg);
   padding-bottom: 244rpx;
   box-sizing: border-box;
 }
@@ -324,7 +333,7 @@ function handleTabChange(value: string) {
 .skeleton-block {
   position: relative;
   overflow: hidden;
-  background: #EAF1ED;
+  background: var(--skeleton-bg);
 }
 
 .skeleton-block::after {
@@ -398,7 +407,7 @@ function handleTabChange(value: string) {
   height: 72rpx;
   margin-right: 20rpx;
   border-radius: 999rpx;
-  background: linear-gradient(135deg, #0BB861 0%, #0BA45A 100%);
+  background: linear-gradient(135deg, var(--brand-bright) 0%, var(--brand) 100%);
   color: #FFFFFF;
   display: flex;
   align-items: center;
@@ -411,8 +420,8 @@ function handleTabChange(value: string) {
   height: 64rpx;
   padding: 0 28rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1rpx solid #E8EFEA;
+  background: var(--card-bg);
+  border: 1rpx solid var(--line-soft);
   display: flex;
   align-items: center;
   gap: 10rpx;
@@ -422,7 +431,7 @@ function handleTabChange(value: string) {
   width: 10rpx;
   height: 10rpx;
   border-radius: 999rpx;
-  background: #0BA45A;
+  background: var(--brand);
   animation: typing 0.9s infinite ease-in-out;
 }
 
@@ -437,7 +446,7 @@ function handleTabChange(value: string) {
   width: 750rpx;
   padding: 14rpx 32rpx 16rpx;
   box-sizing: border-box;
-  background: rgba(246, 251, 248, 0.96);
+  background: var(--page-bg);
   display: flex;
   align-items: center;
   gap: 14rpx;
@@ -448,8 +457,8 @@ function handleTabChange(value: string) {
   width: 72rpx;
   height: 72rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1rpx solid #E8EFEA;
+  background: var(--control-bg);
+  border: 1rpx solid var(--line-soft);
   box-shadow: 0 10rpx 24rpx rgba(23, 35, 30, 0.045);
   display: flex;
   align-items: center;
@@ -463,8 +472,8 @@ function handleTabChange(value: string) {
   height: 72rpx;
   min-width: 0;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1rpx solid #E8EFEA;
+  background: var(--card-bg);
+  border: 1rpx solid var(--line-soft);
   box-shadow: 0 10rpx 24rpx rgba(23, 35, 30, 0.045);
   display: flex;
   align-items: center;
@@ -479,13 +488,13 @@ function handleTabChange(value: string) {
   padding: 0 10rpx 0 26rpx;
   box-sizing: border-box;
   font-size: 26rpx;
-  color: #17231E;
+  color: var(--text-main);
 }
 
 .tool-btn {
   width: 54rpx;
   height: 72rpx;
-  color: #101821;
+  color: var(--text-strong);
   font-size: 30rpx;
   line-height: 72rpx;
   text-align: center;
@@ -494,14 +503,14 @@ function handleTabChange(value: string) {
 
 .music-tool {
   font-size: 34rpx;
-  color: #17231E;
+  color: var(--text-strong);
 }
 
 .send-btn {
   width: 104rpx;
   height: 72rpx;
   border-radius: 999rpx;
-  background: linear-gradient(135deg, #0BB861 0%, #0BA45A 100%);
+  background: linear-gradient(135deg, var(--brand-bright) 0%, var(--brand) 100%);
   color: #FFFFFF;
   font-size: 27rpx;
   font-weight: 800;
@@ -529,5 +538,19 @@ function handleTabChange(value: string) {
 @keyframes typing {
   0%, 80%, 100% { opacity: .34; transform: translateY(0); }
   40% { opacity: 1; transform: translateY(-5rpx); }
+}
+
+@media (prefers-color-scheme: dark) {
+  .page {
+    --page-bg: #0F1512;
+    --card-bg: rgba(24, 31, 27, 0.96);
+    --control-bg: rgba(24, 31, 27, 0.94);
+    --line-soft: rgba(255, 255, 255, 0.1);
+    --text-main: #F4F7F5;
+    --text-strong: #FFFFFF;
+    --brand: #32D579;
+    --brand-bright: #43E58B;
+    --skeleton-bg: #1C2620;
+  }
 }
 </style>
