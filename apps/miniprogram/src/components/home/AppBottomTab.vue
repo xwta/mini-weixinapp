@@ -4,11 +4,12 @@
       v-for="item in tabs"
       :key="item.value"
       class="tab-item"
-      :class="{ active: active === item.value }"
       @tap="emit('change', item.value)"
     >
-      <text class="tab-icon">{{ item.icon }}</text>
-      <text class="tab-label">{{ item.label }}</text>
+      <view class="tab-pill" :class="{ active: active === item.value }">
+        <text class="tab-icon">{{ item.icon }}</text>
+        <text class="tab-label">{{ item.label }}</text>
+      </view>
     </view>
   </view>
 </template>
@@ -27,7 +28,7 @@ const emit = defineEmits<{
 const tabs = [
   { label: '谱灵', value: 'chat', icon: '♪' },
   { label: '社区', value: 'community', icon: '◎' },
-  { label: '我的', value: 'mine', icon: '人' },
+  { label: '我的', value: 'mine', icon: '♙' },
 ]
 </script>
 
@@ -38,37 +39,50 @@ const tabs = [
   right: 0;
   bottom: 0;
   width: 750rpx;
-  height: 112rpx;
-  padding-bottom: env(safe-area-inset-bottom);
-  background: #FFFFFF;
-  border-top: 1rpx solid #E8EFEA;
+  height: 126rpx;
+  padding: 14rpx 32rpx calc(env(safe-area-inset-bottom) + 10rpx);
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1rpx solid rgba(232, 239, 234, 0.88);
   display: flex;
+  box-sizing: border-box;
   z-index: 20;
 }
 
 .tab-item {
   flex: 1;
-  height: 112rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-pill {
+  width: 88rpx;
+  height: 78rpx;
+  border-radius: 28rpx;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #A4AEA8;
+  color: #6F7A83;
+  transition: all 0.18s ease;
+}
+
+.tab-pill.active {
+  width: 176rpx;
+  background: #EAF8F0;
+  color: #0BA45A;
 }
 
 .tab-icon {
   font-size: 34rpx;
-  line-height: 38rpx;
-  font-weight: 700;
+  line-height: 34rpx;
+  font-weight: 800;
 }
 
 .tab-label {
   margin-top: 6rpx;
   font-size: 22rpx;
-  line-height: 28rpx;
-}
-
-.tab-item.active {
-  color: #0BA45A;
+  line-height: 26rpx;
+  font-weight: 700;
 }
 </style>
