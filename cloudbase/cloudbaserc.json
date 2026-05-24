@@ -16,6 +16,7 @@
   "functions": [
     { "name": "login", "timeout": 10, "runtime": "Nodejs18.15" },
     { "name": "songs", "timeout": 20, "runtime": "Nodejs18.15" },
+    { "name": "router", "timeout": 60, "runtime": "Nodejs18.15" },
     { "name": "ai-generate", "timeout": 60, "runtime": "Nodejs18.15" },
     { "name": "ai-image", "timeout": 60, "runtime": "Nodejs18.15" },
     { "name": "comments", "timeout": 10, "runtime": "Nodejs18.15" },
