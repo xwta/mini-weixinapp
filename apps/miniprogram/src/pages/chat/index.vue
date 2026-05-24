@@ -29,6 +29,15 @@
             @start="focusInput"
           />
 
+          <view v-if="loading" class="typing-row">
+            <view class="typing-avatar">谱</view>
+            <view class="typing-bubble">
+              <view class="typing-dot" />
+              <view class="typing-dot" />
+              <view class="typing-dot" />
+            </view>
+          </view>
+
           <AiResultCard
             v-if="lastResult"
             :title="lastResult.title"
@@ -162,6 +171,33 @@ function pushMessage(role: 'ai' | 'user', content: string) {
   })
 }
 
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function streamAiMessage(content: string) {
+  const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+  messages.value.push({ id, role: 'ai', content: '' })
+
+  for (let index = 0; index < content.length; index += 2) {
+    const target = messages.value.find(item => item.id === id)
+    if (!target) return
+    target.content = content.slice(0, index + 2)
+    if (index % 8 === 0) {
+      nextTick(() => {
+        scrollTop.value += 120
+      })
+    }
+    await delay(18)
+  }
+
+  const target = messages.value.find(item => item.id === id)
+  if (target) target.content = content
+  nextTick(() => {
+    scrollTop.value += 360
+  })
+}
+
 function detectRoute(text: string): ModeValue {
   if (activeMode.value !== 'song') return activeMode.value
   if (/搜|找|曲谱|吉他谱|谱子/.test(text)) return 'search'
@@ -194,12 +230,12 @@ async function sendMessage() {
     if (route === 'search' || route === 'practice') {
       const result = await searchSongs({ keyword: text, page_size: 5 })
       if (!result.items.length) {
-        pushMessage('ai', '暂时没搜到合适曲谱。你可以换个关键词，或者让我直接生成一首。')
+        await streamAiMessage('暂时没搜到合适曲谱。你可以换个关键词，或者让我直接生成一首。')
         return
       }
 
       const first = result.items[0]
-      pushMessage('ai', `找到 ${result.items.length} 首相关曲谱。最匹配的是《${first.title}》，可以直接打开练习。`)
+      await streamAiMessage(`找到 ${result.items.length} 首相关曲谱。最匹配的是《${first.title}》，可以直接打开练习。`)
       lastResult.value = {
         songId: first.id,
         title: first.title,
@@ -215,18 +251,18 @@ async function sendMessage() {
       : await createSongwriting({ prompt: text, style: '民谣', difficulty: '新手', key: 'C', language: '中文' })
 
     if (!result.songId) {
-      pushMessage('ai', '生成完成，但没有拿到曲谱 ID。请稍后重试一次。')
+      await streamAiMessage('生成完成，但没有拿到曲谱 ID。请稍后重试一次。')
       return
     }
 
-    pushMessage('ai', `已生成《${result.title}》。和弦走向：${normalizeChords(result)}。`)
+    await streamAiMessage(`已生成《${result.title}》。和弦走向：${normalizeChords(result)}。`)
     lastResult.value = {
       songId: result.songId,
       title: result.title,
       chords: normalizeChords(result),
     }
   } catch (error: any) {
-    pushMessage('ai', error?.message || '刚才的灵感断了根弦，请稍后再试。')
+    await streamAiMessage(error?.message || '刚才的灵感断了根弦，请稍后再试。')
   } finally {
     loading.value = false
   }
@@ -348,6 +384,51 @@ function handleTabChange(value: string) {
   padding-bottom: 36rpx;
 }
 
+.typing-row {
+  width: 750rpx;
+  padding: 0 32rpx;
+  margin-bottom: 24rpx;
+  display: flex;
+  align-items: flex-start;
+  box-sizing: border-box;
+}
+
+.typing-avatar {
+  width: 72rpx;
+  height: 72rpx;
+  margin-right: 20rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #0BB861 0%, #0BA45A 100%);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.typing-bubble {
+  height: 64rpx;
+  padding: 0 28rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1rpx solid #E8EFEA;
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.typing-dot {
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 999rpx;
+  background: #0BA45A;
+  animation: typing 0.9s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) { animation-delay: .12s; }
+.typing-dot:nth-child(3) { animation-delay: .24s; }
+
 .input-bar {
   position: fixed;
   left: 0;
@@ -443,5 +524,10 @@ function handleTabChange(value: string) {
 @keyframes shimmer {
   from { transform: translateX(0); }
   to { transform: translateX(280%); }
+}
+
+@keyframes typing {
+  0%, 80%, 100% { opacity: .34; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-5rpx); }
 }
 </style>
