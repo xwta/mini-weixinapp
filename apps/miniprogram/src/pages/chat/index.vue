@@ -13,6 +13,8 @@
           :key="message.id"
           :role="message.role"
           :content="message.content"
+          @selectPrompt="fillPrompt"
+          @start="focusInput"
         />
 
         <AiResultCard
@@ -28,14 +30,20 @@
 
     <view class="input-bar">
       <view class="voice-btn" @tap="fillVoiceHint">🎙</view>
-      <input
-        v-model="inputText"
-        class="chat-input"
-        confirm-type="send"
-        :disabled="loading"
-        :placeholder="loading ? '谱灵正在拨弦思考...' : placeholder"
-        @confirm="sendMessage"
-      />
+      <view class="input-shell">
+        <input
+          v-model="inputText"
+          class="chat-input"
+          confirm-type="send"
+          :disabled="loading"
+          :focus="inputFocus"
+          :placeholder="loading ? '谱灵正在拨弦思考...' : placeholder"
+          @confirm="sendMessage"
+          @blur="inputFocus = false"
+        />
+        <view class="tool-btn" @tap="showToolTip('附件')">📎</view>
+        <view class="tool-btn music-tool" @tap="selectMode('chord')">♪</view>
+      </view>
       <view :class="['send-btn', loading && 'loading']" @tap="sendMessage">{{ loading ? '生成中' : '发送' }}</view>
     </view>
 
@@ -74,7 +82,8 @@ const inputText = ref('')
 const activeMode = ref<ModeValue>('song')
 const loading = ref(false)
 const scrollTop = ref(0)
-const placeholder = ref('输入你的音乐想法...')
+const inputFocus = ref(false)
+const placeholder = ref('输入你的音乐灵感...')
 const lastResult = ref<ResultCardState | null>(null)
 
 const messages = ref<ChatMessage[]>([
@@ -86,10 +95,10 @@ const messages = ref<ChatMessage[]>([
 ])
 
 const modeItems = [
-  { icon: '♪', label: 'AI写歌', value: 'song' },
-  { icon: '⌕', label: '搜谱', value: 'search' },
-  { icon: '♬', label: '配和弦', value: 'chord' },
-  { icon: '▶', label: '练习', value: 'practice' },
+  { icon: '♪', label: 'AI写歌', value: 'song', badge: '最近生成', desc: '一句灵感，写成一首歌', statusIcon: '♫', statusText: '盛夏晚风' },
+  { icon: '⌕', label: '搜谱', value: 'search', badge: '热门', desc: '搜索你想弹的歌曲', statusIcon: '🔥', statusText: '10w+人在搜' },
+  { icon: '♬', label: '配和弦', value: 'chord', badge: '最近', desc: '为旋律智能匹配和弦', statusIcon: '♬', statusText: 'C G Am F' },
+  { icon: '▶', label: '练习', value: 'practice', badge: '今日', desc: '跟着谱练，快速提升', statusIcon: '◷', statusText: '12 分钟' },
 ]
 
 function selectMode(value: string) {
@@ -101,6 +110,21 @@ function selectMode(value: string) {
     practice: '输入歌名，我帮你找谱开始练',
   }
   placeholder.value = prompts[activeMode.value]
+  inputFocus.value = true
+}
+
+function fillPrompt(prompt: string) {
+  inputText.value = prompt
+  activeMode.value = detectRoute(prompt)
+  inputFocus.value = true
+}
+
+function focusInput() {
+  inputFocus.value = true
+}
+
+function showToolTip(name: string) {
+  uni.showToast({ title: `${name}功能待接入`, icon: 'none' })
 }
 
 function fillVoiceHint() {
@@ -222,21 +246,21 @@ function handleTabChange(value: string) {
   min-height: 100vh;
   width: 750rpx;
   background: #F6FBF8;
-  padding-bottom: 220rpx;
+  padding-bottom: 244rpx;
   box-sizing: border-box;
 }
 
 .content {
-  height: calc(100vh - 220rpx);
+  height: calc(100vh - 244rpx);
   box-sizing: border-box;
 }
 
 .section-space {
-  height: 24rpx;
+  height: 32rpx;
 }
 
 .chat-area {
-  margin-top: 32rpx;
+  margin-top: 46rpx;
   padding-bottom: 36rpx;
 }
 
@@ -244,55 +268,86 @@ function handleTabChange(value: string) {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 112rpx;
+  bottom: 132rpx;
   width: 750rpx;
-  padding: 16rpx 32rpx;
+  padding: 14rpx 32rpx 16rpx;
   box-sizing: border-box;
   background: rgba(246, 251, 248, 0.96);
   display: flex;
   align-items: center;
-  gap: 16rpx;
+  gap: 14rpx;
   z-index: 18;
 }
 
 .voice-btn {
   width: 72rpx;
   height: 72rpx;
-  border-radius: 50%;
-  background: #FFFFFF;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.94);
   border: 1rpx solid #E8EFEA;
+  box-shadow: 0 10rpx 24rpx rgba(23, 35, 30, 0.045);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 30rpx;
+  font-size: 32rpx;
+  flex-shrink: 0;
+}
+
+.input-shell {
+  flex: 1;
+  height: 72rpx;
+  min-width: 0;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1rpx solid #E8EFEA;
+  box-shadow: 0 10rpx 24rpx rgba(23, 35, 30, 0.045);
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .chat-input {
   flex: 1;
+  min-width: 0;
   height: 72rpx;
-  border-radius: 999rpx;
-  background: #FFFFFF;
-  border: 1rpx solid #E8EFEA;
-  padding: 0 28rpx;
+  padding: 0 10rpx 0 26rpx;
   box-sizing: border-box;
-  font-size: 28rpx;
+  font-size: 26rpx;
+  color: #17231E;
+}
+
+.tool-btn {
+  width: 54rpx;
+  height: 72rpx;
+  color: #101821;
+  font-size: 30rpx;
+  line-height: 72rpx;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.music-tool {
+  font-size: 34rpx;
   color: #17231E;
 }
 
 .send-btn {
+  width: 104rpx;
   height: 72rpx;
-  padding: 0 28rpx;
   border-radius: 999rpx;
-  background: #0BA45A;
+  background: linear-gradient(135deg, #0BB861 0%, #0BA45A 100%);
   color: #FFFFFF;
-  font-size: 26rpx;
-  font-weight: 700;
+  font-size: 27rpx;
+  font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 14rpx 26rpx rgba(16, 177, 90, 0.2);
+  flex-shrink: 0;
 }
 
 .send-btn.loading {
-  opacity: .7;
+  opacity: .72;
 }
 </style>
