@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view class="page" :class="{ 'page--leaving': pageLeaving }">
     <scroll-view class="content" scroll-y :scroll-top="scrollTop" :scroll-with-animation="true">
       <view v-if="booting" class="skeleton-page">
         <view class="skeleton-hero skeleton-block" />
@@ -104,6 +104,7 @@ const inputText = ref('')
 const activeMode = ref<ModeValue>('song')
 const loading = ref(false)
 const booting = ref(true)
+const pageLeaving = ref(false)
 const scrollTop = ref(0)
 const inputFocus = ref(false)
 const placeholder = ref('输入你的音乐灵感...')
@@ -287,7 +288,10 @@ function openRecord() {
 }
 
 function goMain(url: string) {
-  uni.reLaunch({ url })
+  pageLeaving.value = true
+  setTimeout(() => {
+    uni.reLaunch({ url })
+  }, 120)
 }
 
 function handleTabChange(value: string) {
@@ -313,6 +317,12 @@ function handleTabChange(value: string) {
   background: var(--page-bg);
   padding-bottom: 244rpx;
   box-sizing: border-box;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.page--leaving {
+  opacity: 0;
+  transform: translateY(12rpx) scale(0.992);
 }
 
 .content {
