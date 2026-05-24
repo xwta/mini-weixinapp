@@ -1,11 +1,15 @@
 <template>
   <view class="mode-grid">
     <view
-      v-for="item in items"
+      v-for="(item, index) in items"
       :key="item.value"
       class="mode-card"
+      :class="`mode-card--${index}`"
+      hover-class="mode-card--pressed"
+      hover-stay-time="80"
       @tap="emit('select', item.value)"
     >
+      <view class="mode-glow" />
       <view class="mode-icon-wrap">
         <text class="mode-icon">{{ item.icon }}</text>
       </view>
@@ -53,6 +57,28 @@ const emit = defineEmits<{ select: [value: string] }>()
   box-shadow: 0 18rpx 42rpx rgba(23, 35, 30, 0.045);
   box-sizing: border-box;
   overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+  animation: cardRise 0.48s ease both;
+}
+
+.mode-card--1 { animation-delay: 0.04s; }
+.mode-card--2 { animation-delay: 0.08s; }
+.mode-card--3 { animation-delay: 0.12s; }
+
+.mode-card--pressed {
+  transform: scale(0.965);
+  opacity: 0.86;
+  box-shadow: 0 10rpx 24rpx rgba(23, 35, 30, 0.035);
+}
+
+.mode-glow {
+  position: absolute;
+  right: -32rpx;
+  top: -42rpx;
+  width: 112rpx;
+  height: 112rpx;
+  border-radius: 999rpx;
+  background: rgba(16, 177, 90, 0.06);
 }
 
 .mode-icon-wrap {
@@ -148,5 +174,10 @@ const emit = defineEmits<{ select: [value: string] }>()
   font-size: 36rpx;
   line-height: 32rpx;
   flex-shrink: 0;
+}
+
+@keyframes cardRise {
+  from { opacity: 0; transform: translateY(18rpx) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 </style>
