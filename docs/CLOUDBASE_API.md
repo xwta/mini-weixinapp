@@ -67,11 +67,7 @@ wx.cloud.callFunction
 login
 ```
 
-用途：
-
-```text
-微信登录 / 自动注册 / 更新最后登录时间
-```
+用途：微信登录 / 自动注册 / 更新最后登录时间。
 
 请求：
 
@@ -159,26 +155,7 @@ views
 }
 ```
 
-返回：
-
-```json
-{
-  "code": 0,
-  "data": {
-    "_id": "song_doc_id",
-    "id": "song_doc_id",
-    "title": "晴天",
-    "content_json": {
-      "sections": []
-    },
-    "view_count": 1
-  }
-}
-```
-
 ### 4.3 我的曲谱
-
-请求：
 
 ```json
 {
@@ -189,8 +166,6 @@ views
 ```
 
 ### 4.4 手动创建曲谱
-
-请求：
 
 ```json
 {
@@ -205,24 +180,7 @@ views
 }
 ```
 
-返回：
-
-```json
-{
-  "code": 0,
-  "data": {
-    "_id": "song_doc_id",
-    "id": "song_doc_id",
-    "title": "我的歌",
-    "source_type": "user_upload",
-    "edit_mode": "manual"
-  }
-}
-```
-
 ### 4.5 发布曲谱
-
-请求：
 
 ```json
 {
@@ -231,20 +189,7 @@ views
 }
 ```
 
-返回：
-
-```json
-{
-  "code": 0,
-  "data": {
-    "published": true
-  }
-}
-```
-
 ### 4.6 删除曲谱
-
-请求：
 
 ```json
 {
@@ -255,8 +200,6 @@ views
 
 ### 4.7 用户主页
 
-请求：
-
 ```json
 {
   "action": "userProfile",
@@ -264,29 +207,7 @@ views
 }
 ```
 
-返回：
-
-```json
-{
-  "code": 0,
-  "data": {
-    "user": {
-      "id": "user_doc_id",
-      "nickname": "谱友"
-    },
-    "stats": {
-      "works_count": 0,
-      "likes_count": 0,
-      "followers_count": 0,
-      "following_count": 0
-    }
-  }
-}
-```
-
 ### 4.8 用户公开曲谱
-
-请求：
 
 ```json
 {
@@ -298,8 +219,6 @@ views
 ```
 
 ### 4.9 关注 / 取消关注
-
-请求：
 
 ```json
 {
@@ -317,8 +236,6 @@ views
 
 ### 4.10 创建练习记录
 
-请求：
-
 ```json
 {
   "action": "practiceCreate",
@@ -334,8 +251,6 @@ views
 
 ### 4.11 最近练习记录
 
-请求：
-
 ```json
 {
   "action": "practiceRecent",
@@ -344,7 +259,95 @@ views
 }
 ```
 
-## 5. ai-generate 云函数
+## 5. web-search 云函数
+
+函数名：
+
+```text
+web-search
+```
+
+用途：本地曲库搜不到时，联网识别歌曲候选。默认不需要 API Key。
+
+默认搜索源：
+
+```text
+MusicBrainz
+ iTunes Search
+```
+
+可选增强搜索源：
+
+```text
+Tavily
+Brave Search
+```
+
+### 5.1 歌曲候选识别
+
+请求：
+
+```json
+{
+  "action": "songLookup",
+  "keyword": "晴天 周杰伦"
+}
+```
+
+返回：
+
+```json
+{
+  "code": 0,
+  "data": {
+    "query": "晴天 周杰伦",
+    "canGenerate": true,
+    "provider": "open",
+    "notice": "搜索结果仅用于识别歌曲与生成 AI 简化弹唱编配，不复制第三方完整歌词或曲谱。",
+    "candidates": [
+      {
+        "title": "晴天",
+        "artist": "周杰伦",
+        "album": "叶惠美",
+        "duration": 269000,
+        "confidence": 0.86,
+        "source": "musicbrainz+itunes",
+        "summary": "识别到歌曲信息，可生成 AI 简化弹唱编配版。",
+        "references": [
+          {
+            "title": "iTunes：晴天 - 周杰伦",
+            "url": "https://...",
+            "snippet": "专辑：叶惠美"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 5.2 环境变量
+
+默认无需配置 Key。建议配置：
+
+```text
+MUSICBRAINZ_USER_AGENT=PulingAI/1.0 (your-email@example.com)
+```
+
+可选增强：
+
+```text
+WEB_SEARCH_PROVIDER=open   # 默认，仅 MusicBrainz + iTunes
+WEB_SEARCH_PROVIDER=auto   # 开放元数据 + Tavily / Brave 增强
+TAVILY_API_KEY=xxx
+BRAVE_SEARCH_API_KEY=xxx
+```
+
+### 5.3 版权边界
+
+`web-search` 只保存歌曲元数据、链接和摘要，不保存完整歌词或第三方现成吉他谱。
+
+## 6. ai-generate 云函数
 
 函数名：
 
@@ -352,15 +355,9 @@ views
 ai-generate
 ```
 
-用途：
+用途：AI 写歌 / AI 配和弦 / 联网候选生成简化弹唱谱 / 自动保存曲谱 / 扣减生成额度。
 
-```text
-AI 写歌 / AI 配和弦 / 自动保存曲谱 / 扣减生成额度
-```
-
-### 5.1 AI 写歌
-
-请求：
+### 6.1 AI 写歌
 
 ```json
 {
@@ -373,36 +370,7 @@ AI 写歌 / AI 配和弦 / 自动保存曲谱 / 扣减生成额度
 }
 ```
 
-返回：
-
-```json
-{
-  "code": 0,
-  "data": {
-    "songId": "song_doc_id",
-    "title": "AI原创弹唱歌",
-    "style": "民谣",
-    "song_key": "C",
-    "bpm": 86,
-    "capo": "0品",
-    "difficulty": "新手",
-    "strumming": "下 下上 上下上",
-    "chords": ["C", "G", "Am", "F"],
-    "sections": [],
-    "practiceTips": [],
-    "user": {
-      "generation_quota": 9,
-      "total_generated": 1,
-      "works_count": 1,
-      "membership_type": "free"
-    }
-  }
-}
-```
-
-### 5.2 歌词配和弦
-
-请求：
+### 6.2 歌词配和弦
 
 ```json
 {
@@ -414,26 +382,24 @@ AI 写歌 / AI 配和弦 / 自动保存曲谱 / 扣减生成额度
 }
 ```
 
-## 6. ai-image 云函数
-
-函数名：
-
-```text
-ai-image
-```
-
-用途：
-
-```text
-根据提示词生成图片 URL
-```
-
-请求：
+### 6.3 联网歌曲候选生成 AI 简化弹唱版
 
 ```json
 {
-  "prompt": "温暖治愈的民谣吉他封面，夕阳，手绘质感",
-  "model": "hunyuan-image-v3.0-v1.0.4"
+  "type": "web_chords",
+  "title": "晴天",
+  "artist": "周杰伦",
+  "song_key": "C",
+  "difficulty": "新手",
+  "web_context": {
+    "title": "晴天",
+    "artist": "周杰伦",
+    "album": "叶惠美",
+    "confidence": 0.86,
+    "source": "musicbrainz+itunes",
+    "summary": "识别到歌曲信息，可生成 AI 简化弹唱编配版。",
+    "references": []
+  }
 }
 ```
 
@@ -443,13 +409,55 @@ ai-image
 {
   "code": 0,
   "data": {
-    "imageUrl": "https://...",
-    "raw": {}
+    "songId": "song_doc_id",
+    "title": "晴天 AI简化弹唱版",
+    "style": "民谣",
+    "song_key": "C",
+    "bpm": 86,
+    "capo": "0品",
+    "difficulty": "新手",
+    "strumming": "下 下上 上下上",
+    "chords": ["C", "G", "Am", "F"],
+    "sections": [],
+    "practiceTips": [],
+    "source_type": "ai_web",
+    "user": {
+      "generation_quota": 9,
+      "total_generated": 1,
+      "works_count": 1,
+      "membership_type": "free"
+    }
   }
 }
 ```
 
-## 7. comments 云函数
+说明：
+
+```text
+web_chords 生成结果默认 private
+audit_status 默认 private
+source_type = ai_web
+generation_source.type = web_search
+```
+
+## 7. ai-image 云函数
+
+函数名：
+
+```text
+ai-image
+```
+
+用途：根据提示词生成图片 URL。
+
+```json
+{
+  "prompt": "温暖治愈的民谣吉他封面，夕阳，手绘质感",
+  "model": "hunyuan-image-v3.0-v1.0.4"
+}
+```
+
+## 8. comments 云函数
 
 函数名：
 
@@ -457,9 +465,7 @@ ai-image
 comments
 ```
 
-### 7.1 评论列表
-
-请求：
+### 8.1 评论列表
 
 ```json
 {
@@ -469,9 +475,7 @@ comments
 }
 ```
 
-### 7.2 创建评论
-
-请求：
+### 8.2 创建评论
 
 ```json
 {
@@ -482,9 +486,7 @@ comments
 }
 ```
 
-### 7.3 删除评论
-
-请求：
+### 8.3 删除评论
 
 ```json
 {
@@ -493,15 +495,13 @@ comments
 }
 ```
 
-## 8. notifications 云函数
+## 9. notifications 云函数
 
 函数名：
 
 ```text
 notifications
 ```
-
-### 8.1 消息列表
 
 ```json
 {
@@ -510,26 +510,11 @@ notifications
 }
 ```
 
-### 8.2 未读数量
-
 ```json
 {
   "action": "unreadCount"
 }
 ```
-
-返回：
-
-```json
-{
-  "code": 0,
-  "data": {
-    "count": 3
-  }
-}
-```
-
-### 8.3 标记已读
 
 ```json
 {
@@ -538,15 +523,11 @@ notifications
 }
 ```
 
-### 8.4 全部已读
-
 ```json
 {
   "action": "readAll"
 }
 ```
-
-### 8.5 创建通知
 
 ```json
 {
@@ -559,15 +540,13 @@ notifications
 }
 ```
 
-## 9. interactions 云函数
+## 10. interactions 云函数
 
 函数名：
 
 ```text
 interactions
 ```
-
-### 9.1 切换点赞
 
 ```json
 {
@@ -576,16 +555,12 @@ interactions
 }
 ```
 
-### 9.2 切换收藏
-
 ```json
 {
   "action": "toggleFavorite",
   "song_id": "song_doc_id"
 }
 ```
-
-### 9.3 点赞 / 取消点赞
 
 ```json
 {
@@ -601,8 +576,6 @@ interactions
 }
 ```
 
-### 9.4 收藏 / 取消收藏
-
 ```json
 {
   "action": "addFavorite",
@@ -617,8 +590,6 @@ interactions
 }
 ```
 
-### 9.5 收藏列表
-
 ```json
 {
   "action": "listFavorites",
@@ -626,8 +597,6 @@ interactions
   "page_size": 20
 }
 ```
-
-### 9.6 点赞列表
 
 ```json
 {
@@ -637,7 +606,7 @@ interactions
 }
 ```
 
-## 10. discovery 云函数
+## 11. discovery 云函数
 
 函数名：
 
@@ -645,28 +614,11 @@ interactions
 discovery
 ```
 
-### 10.1 首页聚合
-
 ```json
 {
   "action": "home"
 }
 ```
-
-返回：
-
-```json
-{
-  "code": 0,
-  "data": {
-    "keywords": ["晴天", "成都", "周杰伦"],
-    "hot": [],
-    "recommend": []
-  }
-}
-```
-
-### 10.2 热门曲谱
 
 ```json
 {
@@ -675,8 +627,6 @@ discovery
 }
 ```
 
-### 10.3 推荐曲谱
-
 ```json
 {
   "action": "recommend",
@@ -684,15 +634,13 @@ discovery
 }
 ```
 
-### 10.4 热搜关键词
-
 ```json
 {
   "action": "keywords"
 }
 ```
 
-## 11. orders 云函数
+## 12. orders 云函数
 
 函数名：
 
@@ -702,31 +650,11 @@ orders
 
 注意：当前为 mock 支付链路，仅用于前端调试和会员流程占位。
 
-### 11.1 会员套餐列表
-
 ```json
 {
   "action": "products"
 }
 ```
-
-返回：
-
-```json
-{
-  "code": 0,
-  "data": [
-    {
-      "code": "vip_month",
-      "name": "月度会员",
-      "product_type": "vip",
-      "amount": 29
-    }
-  ]
-}
-```
-
-### 11.2 创建订单
 
 ```json
 {
@@ -734,27 +662,6 @@ orders
   "product_code": "vip_month"
 }
 ```
-
-返回：
-
-```json
-{
-  "code": 0,
-  "data": {
-    "order": {
-      "id": "order_doc_id",
-      "order_no": "PL...",
-      "payment_status": "pending"
-    },
-    "payment_params": {
-      "mode": "mock",
-      "order_no": "PL..."
-    }
-  }
-}
-```
-
-### 11.3 我的订单
 
 ```json
 {
@@ -764,17 +671,22 @@ orders
 }
 ```
 
-## 12. 前端调用示例
+## 13. 前端调用示例
 
 ```ts
-import { request } from './provider'
+import { searchWebSong } from './webSearch'
+import { createWebChords } from './ai'
 
-export async function toggleFavorite(songId: string) {
-  return request('interactions', {
-    action: 'toggleFavorite',
-    song_id: songId,
-  })
-}
+const web = await searchWebSong('晴天 周杰伦')
+const candidate = web.candidates[0]
+
+const song = await createWebChords({
+  title: candidate.title,
+  artist: candidate.artist,
+  key: 'C',
+  difficulty: '新手',
+  web_context: candidate,
+})
 ```
 
 新增接口时，优先在 `src/api/*.ts` 中封装，不要在页面中直接写 `wx.cloud.callFunction`。
