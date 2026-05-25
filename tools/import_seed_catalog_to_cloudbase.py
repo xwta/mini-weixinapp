@@ -8,7 +8,7 @@ It imports song metadata and guitar-tab search references only, not full tabs.
 Usage:
   python tools/import_seed_catalog_to_cloudbase.py --input cloudbase/database/seed_bulk_catalog.jsonl --token YOUR_TOKEN
   python tools/import_seed_catalog_to_cloudbase.py --input cloudbase/database/seed_bulk_catalog.jsonl --dry-run
-  python tools/import_seed_catalog_to_cloudbase.py --input cloudbase/database/seed_bulk_catalog.jsonl --cli "npx @cloudbase/cli"
+  python tools/import_seed_catalog_to_cloudbase.py --input cloudbase/database/seed_bulk_catalog.jsonl --cli "D:\\software\\nodejs\\tcb.cmd" --batch-size 10
 """
 
 from __future__ import annotations
@@ -21,6 +21,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Iterator
+
+WINDOWS_COMMAND_LIMIT = 28000
 
 
 def load_items(path: Path) -> list[dict]:
@@ -65,7 +67,7 @@ def resolve_cli() -> list[str]:
 
     raise RuntimeError(
         "CloudBase CLI not found. Install it with `npm install -g @cloudbase/cli`, "
-        "or run with `--cli \"npx @cloudbase/cli\"`."
+        "or run with `--cli \"D:\\\\software\\\\nodejs\\\\tcb.cmd\"`."
     )
 
 
@@ -87,7 +89,20 @@ def extract_data(response: dict) -> dict:
     return response
 
 
-def call_cloudbase(batch: list[dict], token: str, dry_run: bool, cli_parts: list[str], function_name: str) -> dict:
+def command_length(command: list[str]) -> int:
+    return sum(len(part) + 3 for part in command)
+
+
+def run_command(command: list[str]) -> dict:
+    result = subprocess.run(command, capture_output=True, text=True, check=True, encoding="utf-8", errors="ignore")
+    output = result.stdout.strip() or result.stderr.strip()
+    try:
+        return json.loads(output)
+    except Exception:
+        return {"raw": output}
+
+
+def invoke_once(batch: list[dict], token: str, dry_run: bool, cli_parts: list[str], function_name: str) -> dict:
     payload = {
         "action": "import",
         "items": batch,
@@ -100,42 +115,67 @@ def call_cloudbase(batch: list[dict], token: str, dry_run: bool, cli_parts: list
         json.dump(payload, f, ensure_ascii=False)
         payload_path = f.name
 
-    # CloudBase CLI versions differ. Try several parameter styles.
     payload_inline = json.dumps(payload, ensure_ascii=False)
     commands = [
         cli_parts + ["functions:invoke", function_name, "--params-file", payload_path],
-        cli_parts + ["functions:invoke", function_name, "--params", payload_inline],
         cli_parts + ["fn", "invoke", function_name, "--params-file", payload_path],
+    ]
+
+    inline_commands = [
+        cli_parts + ["functions:invoke", function_name, "--params", payload_inline],
         cli_parts + ["fn", "invoke", function_name, "--params", payload_inline],
     ]
+
+    for command in inline_commands:
+        if command_length(command) < WINDOWS_COMMAND_LIMIT:
+            commands.append(command)
 
     errors = []
     for command in commands:
         try:
-            result = subprocess.run(command, capture_output=True, text=True, check=True, encoding="utf-8", errors="ignore")
-            output = result.stdout.strip() or result.stderr.strip()
-            try:
-                return json.loads(output)
-            except Exception:
-                return {"raw": output}
+            return run_command(command)
         except Exception as exc:
             errors.append({"command": " ".join(command[:3]), "error": str(exc)})
 
-    raise RuntimeError(f"CloudBase invoke failed: {errors[-1] if errors else 'unknown error'}")
+    raise RuntimeError(json.dumps(errors, ensure_ascii=False))
+
+
+def call_cloudbase(batch: list[dict], token: str, dry_run: bool, cli_parts: list[str], function_name: str) -> dict:
+    try:
+        return invoke_once(batch, token, dry_run, cli_parts, function_name)
+    except Exception as exc:
+        message = str(exc)
+        too_long = "WinError 206" in message or "文件名或扩展名太长" in message or "too long" in message.lower()
+        if too_long and len(batch) > 1:
+            mid = max(1, len(batch) // 2)
+            left = extract_data(call_cloudbase(batch[:mid], token, dry_run, cli_parts, function_name))
+            right = extract_data(call_cloudbase(batch[mid:], token, dry_run, cli_parts, function_name))
+            return {
+                "data": {
+                    "dryRun": dry_run,
+                    "received": int(left.get("received", 0)) + int(right.get("received", 0)),
+                    "created": int(left.get("created", 0)) + int(right.get("created", 0)),
+                    "updated": int(left.get("updated", 0)) + int(right.get("updated", 0)),
+                    "skipped": int(left.get("skipped", 0)) + int(right.get("skipped", 0)),
+                    "errors": (left.get("errors", []) if isinstance(left.get("errors", []), list) else []) + (right.get("errors", []) if isinstance(right.get("errors", []), list) else []),
+                    "autoSplit": True,
+                }
+            }
+        raise RuntimeError(f"CloudBase invoke failed: {message}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=Path, required=True)
-    parser.add_argument("--batch-size", type=int, default=100)
+    parser.add_argument("--batch-size", type=int, default=10, help="Windows CLI recommends 5-20. Default: 10")
     parser.add_argument("--token", default="")
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--cli", default="auto", help='cloudbase, cloudbase.cmd, tcb, or "npx @cloudbase/cli"')
+    parser.add_argument("--cli", default="auto", help='cloudbase, cloudbase.cmd, tcb, or "D:\\software\\nodejs\\tcb.cmd"')
     parser.add_argument("--function", default="seed-bulk-import")
     args = parser.parse_args()
 
     cli_parts = split_cli(args.cli)
-    print(json.dumps({"using_cli": " ".join(cli_parts)}, ensure_ascii=False))
+    print(json.dumps({"using_cli": " ".join(cli_parts), "batch_size": args.batch_size}, ensure_ascii=False))
 
     items = load_items(args.input)
     total = len(items)
