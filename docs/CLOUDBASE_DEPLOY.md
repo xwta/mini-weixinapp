@@ -11,6 +11,7 @@
 后端：微信云函数 Node.js 18.15
 数据库：微信云数据库
 AI：CloudBase AI 文本模型 / 混元生图模型
+联网歌曲识别：MusicBrainz / iTunes Search，可选 Tavily / Brave Search
 ```
 
 ## 2. 前置准备
@@ -179,22 +180,24 @@ cloudbase/database/
 前端只读必要公开数据
 所有写操作统一通过云函数完成
 私有数据通过 openid 或 user_id 隔离
+AI 联网生成结果默认 private，发布前应再审核
 ```
 
 ## 8. 云函数部署顺序
 
-建议先部署基础函数，再部署依赖 AI 或业务扩展的函数：
+建议先部署基础函数，再部署 AI 和业务扩展函数：
 
 ```text
 1. login
 2. songs
-3. ai-generate
-4. ai-image
-5. comments
-6. notifications
-7. interactions
-8. discovery
-9. orders
+3. web-search
+4. ai-generate
+5. ai-image
+6. comments
+7. notifications
+8. interactions
+9. discovery
+10. orders
 ```
 
 部署全部云函数：
@@ -208,6 +211,7 @@ cloudbase functions:deploy
 ```bash
 cloudbase functions:deploy login
 cloudbase functions:deploy songs
+cloudbase functions:deploy web-search
 cloudbase functions:deploy ai-generate
 cloudbase functions:deploy ai-image
 ```
@@ -218,12 +222,48 @@ cloudbase functions:deploy ai-image
 cloudbase deploy
 ```
 
-## 9. AI 能力配置
+## 9. 联网歌曲识别配置
+
+`web-search` 云函数用于本地曲库搜不到时识别歌曲候选。
+
+默认模式不需要 API Key：
+
+```text
+WEB_SEARCH_PROVIDER=open
+```
+
+默认使用：
+
+```text
+MusicBrainz
+ iTunes Search
+```
+
+建议配置 MusicBrainz User-Agent：
+
+```text
+MUSICBRAINZ_USER_AGENT=PulingAI/1.0 (your-email@example.com)
+```
+
+说明：MusicBrainz 对访问频率敏感，云函数内已做简单限频和 6 小时内存缓存。生产环境仍建议减少重复查询。
+
+可选增强网页搜索：
+
+```text
+WEB_SEARCH_PROVIDER=auto
+TAVILY_API_KEY=xxx
+BRAVE_SEARCH_API_KEY=xxx
+```
+
+密钥必须配置在 CloudBase 云函数环境变量或密钥管理中，不要写进前端代码或 GitHub。
+
+## 10. AI 能力配置
 
 当前分支使用 CloudBase AI：
 
 ```text
 ai-generate：CloudBase 文本模型，生成曲谱 JSON
+ai-generate type=web_chords：根据联网歌曲候选生成 AI 简化弹唱编配版
 ai-image：CloudBase 混元生图模型，生成图片 URL
 ```
 
@@ -231,17 +271,7 @@ ai-image：CloudBase 混元生图模型，生成图片 URL
 
 如果后续新增 OpenAI 或其他第三方模型 provider，请在 CloudBase 控制台通过云函数环境变量或密钥管理配置，不要把密钥写入 GitHub。
 
-建议环境变量：
-
-```text
-APP_ENV
-CLOUDBASE_ENV_ID
-TCB_ENV
-OPENAI_API_KEY          # 仅在后续接入 OpenAI provider 时需要
-OPENAI_MODEL            # 仅在后续接入 OpenAI provider 时需要
-```
-
-## 10. 小程序端配置
+## 11. 小程序端配置
 
 微信开发者工具中需要：
 
@@ -273,7 +303,7 @@ api/provider.ts
 wx.cloud.callFunction
 ```
 
-## 11. 发布流程
+## 12. 发布流程
 
 推荐流程：
 
@@ -284,12 +314,12 @@ wx.cloud.callFunction
 4. 微信开发者工具导入 dist/build/mp-weixin
 5. 预览并测试核心链路
 6. 发布体验版
-7. 测试登录、搜谱、AI生成、评论、点赞收藏、消息、订单
+7. 测试登录、搜谱、本地搜不到后的 web-search、web_chords AI 生成、评论、点赞收藏、消息、订单
 8. 提交审核
 9. 发布正式版
 ```
 
-## 12. 上线检查清单
+## 13. 上线检查清单
 
 ```text
 云环境 ID 正确
@@ -301,8 +331,10 @@ CloudBase AI 能力已开通
 provider.ts 已启用 CloudBase
 首页 discovery 数据正常
 登录 login 正常
-搜谱 songs 正常
+本地搜谱 songs 正常
+联网候选 web-search 正常
 AI 生成 ai-generate 正常
+web_chords 生成结果 source_type=ai_web 且默认 private
 AI 生图 ai-image 正常
 评论 comments 正常
 点赞收藏 interactions 正常
@@ -312,7 +344,7 @@ AI 生图 ai-image 正常
 
 注意：`orders` 当前为 mock 支付链路，不可直接作为正式收款能力上线。
 
-## 13. 常见问题
+## 14. 常见问题
 
 ### 根目录执行 npm install 失败
 
@@ -354,6 +386,19 @@ songs 集合是否有公开数据
 is_public 是否为 true
 数据库权限是否允许读取
 ```
+
+### 本地搜不到后没有联网候选
+
+检查：
+
+```text
+web-search 是否已部署
+云函数是否允许访问外网
+MusicBrainz / iTunes Search 是否可访问
+是否配置了有效 MUSICBRAINZ_USER_AGENT
+```
+
+默认无 Key 模式即使未找到明确歌曲，也会返回关键词 fallback，允许用户生成 AI 简化弹唱编配版。
 
 ### AI 生成失败
 
