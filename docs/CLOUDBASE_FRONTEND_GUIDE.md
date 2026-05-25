@@ -78,7 +78,8 @@ apps/miniprogram/src/api/provider.ts
 |---|---|---|---|
 | Auth API | `src/api/auth.ts` | `login` | 已接入 |
 | Songs API | `src/api/songs.ts` | `songs` | 已接入 |
-| AI API | `src/api/ai.ts` | `ai-generate` | 已接入 |
+| Web Search API | `src/api/webSearch.ts` | `web-search` | 已接入 |
+| AI API | `src/api/ai.ts` | `ai-generate` | 已接入，含 `createWebChords` |
 | Comments API | `src/api/comments.ts` | `comments` | 已接入 |
 | Discovery API | `src/api/discovery.ts` | `discovery` | 已接入 |
 | Notifications API | `src/api/notifications.ts` | `notifications` | 已接入 |
@@ -86,32 +87,59 @@ apps/miniprogram/src/api/provider.ts
 
 说明：`ai-image` 和 `orders` 云函数已存在，若页面需要使用，需要新增或补齐对应的前端 API 封装。
 
-## 5. 页面关系
+## 5. 谱灵页搜索与 AI 生成链路
+
+`pages/chat/index.vue` 当前搜索链路：
 
 ```text
-首页
+用户输入歌名 / 吉他谱关键词
   ↓
-Discovery API
+searchSongs 查询本地 songs 公开曲库
   ↓
-discovery 云函数
+本地有结果：展示 AiResultCard，可查看曲谱 / 开始练习
+  ↓
+本地无结果：searchWebSong 调用 web-search
+  ↓
+展示 WebSongSuggestionCard
+  ↓
+用户点击 AI生成吉他谱
+  ↓
+createWebChords 调用 ai-generate type=web_chords
+  ↓
+保存 source_type=ai_web 的私有曲谱
+```
 
-搜谱页 / 曲谱详情页 / 我的曲谱
+前端相关文件：
+
+```text
+apps/miniprogram/src/pages/chat/index.vue
+apps/miniprogram/src/api/webSearch.ts
+apps/miniprogram/src/api/ai.ts
+apps/miniprogram/src/components/home/WebSongSuggestionCard.vue
+```
+
+注意：联网候选只用于识别歌曲，不展示完整歌词或现成第三方曲谱。
+
+## 6. 页面关系
+
+```text
+谱灵页
   ↓
-Songs API
+Songs API / Web Search API / AI API
   ↓
-songs 云函数
+songs / web-search / ai-generate 云函数
+
+社区页
+  ↓
+Discovery API / Songs API / Interactions API
+  ↓
+discovery / songs / interactions 云函数
 
 曲谱详情评论区
   ↓
 Comments API
   ↓
 comments 云函数
-
-创作页
-  ↓
-AI API
-  ↓
-ai-generate 云函数
 
 消息中心
   ↓
@@ -132,7 +160,7 @@ Auth API
 login 云函数
 ```
 
-## 6. 封装原则
+## 7. 封装原则
 
 页面不直接调用 `wx.cloud.callFunction`。
 
@@ -155,7 +183,7 @@ api/provider.ts
 4. 错误码、toast、登录失效交给 provider.ts 统一处理
 ```
 
-## 7. 错误处理
+## 8. 错误处理
 
 统一错误码：
 
@@ -170,13 +198,21 @@ code >= 500   服务端错误，提示服务繁忙或具体错误
 
 页面层只处理业务状态，不重复弹出通用错误。
 
-## 8. 环境切换
+## 9. 环境切换
 
 MVP 阶段固定使用 CloudBase：
 
 ```text
 wx.cloud.callFunction
 ```
+
+联网歌曲识别默认无需 Key：
+
+```text
+WEB_SEARCH_PROVIDER=open
+```
+
+如果启用 Tavily / Brave 增强搜索，需要在 CloudBase 云函数环境变量配置，不要写进前端代码。
 
 后续如果需要在 CloudBase 与 HTTP API 间切换，可引入：
 
@@ -187,18 +223,18 @@ VITE_API_PROVIDER=http
 
 当前分支暂未启用该环境变量。
 
-## 9. 微信开发者工具配置
+## 10. 微信开发者工具配置
 
 ```text
 开启云开发
 绑定 CloudBase 环境
-上传并部署云函数
+上传并部署云函数，包括 web-search 和 ai-generate
 确认云数据库集合存在
 确认小程序端已初始化 wx.cloud
 导入 apps/miniprogram/dist/build/mp-weixin
 ```
 
-## 10. 常见问题
+## 11. 常见问题
 
 ### 提示“云开发未初始化，请检查 wx.cloud.init 配置”
 
@@ -232,4 +268,15 @@ cloudbase/cloudbaserc.json 是否声明该函数
 云函数是否已部署
 src/api/*.ts 是否新增封装
 functionName 和 action 是否拼写一致
+```
+
+### 本地搜不到后没有联网候选
+
+检查：
+
+```text
+web-search 是否部署
+src/api/webSearch.ts 是否存在
+chat/index.vue 是否引入 searchWebSong
+云函数是否能访问 MusicBrainz / iTunes Search
 ```
