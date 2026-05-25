@@ -8,9 +8,12 @@ const MAX_QUERY_VARIANTS = 5
 const MAX_TAB_REFERENCES = 8
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000
 const USER_AGENT = process.env.MUSICBRAINZ_USER_AGENT || 'PulingAI/1.0 (mini-weixinapp; contact: cloudbase)'
+const DDG_USER_AGENT = process.env.DDG_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+const DDG_HTML_ENDPOINT = process.env.DDG_HTML_ENDPOINT || 'https://html.duckduckgo.com/html/'
 
 const memoryCache = new Map()
 let lastMusicBrainzAt = 0
+let lastDuckDuckGoAt = 0
 
 function jsonResponse(code, dataOrMessage) {
   if (code === 0) return { code, data: dataOrMessage }
@@ -25,20 +28,36 @@ function normalizeKeyword(keyword = '') {
     .trim()
 }
 
-function stripHtml(text = '') {
+function decodeHtml(text = '') {
   return String(text || '')
-    .replace(/<[^>]*>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&#39;/g, "'")
     .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#x([0-9a-f]+);/gi, (_match, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_match, num) => String.fromCharCode(parseInt(num, 10)))
+}
+
+function stripHtml(text = '') {
+  return decodeHtml(text)
+    .replace(/<[^>]*>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 }
 
 function safeUrl(url = '') {
   try {
-    const parsed = new URL(url)
+    let raw = decodeHtml(String(url || '')).trim()
+    if (raw.startsWith('//')) raw = `https:${raw}`
+    const parsed = new URL(raw)
+
+    if (parsed.hostname.includes('duckduckgo.com') && parsed.pathname.startsWith('/l/')) {
+      const uddg = parsed.searchParams.get('uddg')
+      if (uddg) return safeUrl(decodeURIComponent(uddg))
+    }
+
     if (!['http:', 'https:'].includes(parsed.protocol)) return ''
     return parsed.toString()
   } catch (_error) {
@@ -68,7 +87,7 @@ function setCache(key, value) {
   }
 }
 
-function requestJson(url, options = {}) {
+function requestRaw(url, options = {}) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url)
     const transport = parsed.protocol === 'http:' ? require('http') : require('https')
@@ -85,18 +104,14 @@ function requestJson(url, options = {}) {
         res.setEncoding('utf8')
         res.on('data', (chunk) => {
           raw += chunk
-          if (raw.length > 800000) req.destroy(new Error('response too large'))
+          if (raw.length > 1200000) req.destroy(new Error('response too large'))
         })
         res.on('end', () => {
           if (res.statusCode < 200 || res.statusCode >= 300) {
             reject(new Error(`search provider status ${res.statusCode}`))
             return
           }
-          try {
-            resolve(JSON.parse(raw || '{}'))
-          } catch (error) {
-            reject(error)
-          }
+          resolve(raw)
         })
       }
     )
@@ -106,6 +121,11 @@ function requestJson(url, options = {}) {
     if (options.body) req.write(options.body)
     req.end()
   })
+}
+
+async function requestJson(url, options = {}) {
+  const raw = await requestRaw(url, options)
+  return JSON.parse(raw || '{}')
 }
 
 function compactReferences(references = [], max = MAX_RESULTS) {
@@ -384,6 +404,69 @@ function buildWebCandidate(query, references = [], source = 'web') {
   }
 }
 
+function parseDuckDuckGoHtml(html = '', query = '', category = 'tab_reference') {
+  const results = []
+  const blocks = html.split(/<div class="result results_links[^>]*>|<div class="web-result[^>]*>/i).slice(1)
+
+  blocks.forEach((block) => {
+    const titleMatch = block.match(/<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i)
+      || block.match(/<h2[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h2>/i)
+    if (!titleMatch) return
+
+    const snippetMatch = block.match(/<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i)
+      || block.match(/<div[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i)
+      || block.match(/<span[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/span>/i)
+
+    const ref = {
+      title: stripHtml(titleMatch[2]),
+      url: safeUrl(titleMatch[1]),
+      snippet: stripHtml(snippetMatch?.[1] || ''),
+      category,
+      provider: 'duckduckgo',
+    }
+    ref.tab_score = scoreTabReference(ref, query)
+    if (ref.title && ref.url) results.push(ref)
+  })
+
+  if (results.length) return compactReferences(results, MAX_RESULTS)
+
+  const anchorRegex = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
+  let match
+  while ((match = anchorRegex.exec(html)) && results.length < MAX_RESULTS) {
+    const ref = {
+      title: stripHtml(match[2]),
+      url: safeUrl(match[1]),
+      snippet: '',
+      category,
+      provider: 'duckduckgo',
+    }
+    ref.tab_score = scoreTabReference(ref, query)
+    if (ref.title && ref.url) results.push(ref)
+  }
+
+  return compactReferences(results, MAX_RESULTS)
+}
+
+async function searchWithDuckDuckGo(query, category = 'tab_reference') {
+  const now = Date.now()
+  const wait = Math.max(0, 850 - (now - lastDuckDuckGoAt))
+  if (wait) await sleep(wait)
+  lastDuckDuckGoAt = Date.now()
+
+  const url = `${DDG_HTML_ENDPOINT}?q=${encodeURIComponent(query)}&kl=cn-zh`
+  const html = await requestRaw(url, {
+    headers: {
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.7',
+      'User-Agent': DDG_USER_AGENT,
+    },
+  })
+
+  const references = parseDuckDuckGoHtml(html, query, category)
+  const candidate = buildWebCandidate(query, references, category === 'tab_reference' ? 'duckduckgo_tab' : 'duckduckgo')
+  return candidate.references.length ? [candidate] : []
+}
+
 async function searchWithTavily(query, category = 'music_meta') {
   const apiKey = process.env.TAVILY_API_KEY
   if (!apiKey) return []
@@ -453,6 +536,10 @@ async function searchWithBrave(query, category = 'music_meta') {
 
 async function searchTabReferences(queryVariants = [], provider = 'auto') {
   const jobs = []
+  const useDuckDuckGo = provider === 'open' || provider === 'auto' || provider === 'duckduckgo'
+  if (useDuckDuckGo) {
+    queryVariants.forEach((query) => jobs.push(searchWithDuckDuckGo(query, 'tab_reference').catch(() => [])))
+  }
   if (provider === 'tavily' || provider === 'auto') {
     queryVariants.forEach((query) => jobs.push(searchWithTavily(query, 'tab_reference').catch(() => [])))
   }
@@ -532,7 +619,7 @@ exports.main = async (event = {}) => {
     const provider = event.provider || process.env.WEB_SEARCH_PROVIDER || 'auto'
     let candidates = []
     let tabReferences = []
-    const canSearchTabs = Boolean(process.env.TAVILY_API_KEY || process.env.BRAVE_SEARCH_API_KEY)
+    const canSearchTabs = provider === 'open' || provider === 'auto' || provider === 'duckduckgo' || Boolean(process.env.TAVILY_API_KEY || process.env.BRAVE_SEARCH_API_KEY)
 
     if (provider === 'open' || provider === 'auto') {
       const itunesJobs = queryVariants.map((query) => searchItunes(query, cleanKeyword).catch((error) => {
@@ -553,7 +640,7 @@ exports.main = async (event = {}) => {
       candidates = mergeCandidates([...itunesResults, ...musicBrainzResults])
     }
 
-    if (canSearchTabs && (provider === 'auto' || provider === 'tavily' || provider === 'brave')) {
+    if (canSearchTabs) {
       tabReferences = await searchTabReferences(tabQueryVariants, provider).catch((error) => {
         console.log('tab reference search failed', error?.message || error)
         return []
