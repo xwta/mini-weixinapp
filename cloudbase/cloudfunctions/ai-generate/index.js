@@ -119,8 +119,44 @@ function sectionsToRawText(sections = []) {
     .join('\n\n')
 }
 
+function sanitizeReferences(references = []) {
+  return (Array.isArray(references) ? references : [])
+    .slice(0, 5)
+    .map((item) => ({
+      title: String(item?.title || '').slice(0, 120),
+      url: String(item?.url || '').slice(0, 500),
+      snippet: String(item?.snippet || '').slice(0, 180),
+    }))
+    .filter((item) => item.title || item.url || item.snippet)
+}
+
+function buildWebContext(event = {}) {
+  const context = event.web_context || {}
+  const references = sanitizeReferences(context.references)
+  return {
+    title: String(event.title || context.title || '').trim(),
+    artist: String(event.artist || context.artist || '').trim(),
+    summary: String(context.summary || '').slice(0, 500),
+    confidence: Number(context.confidence || 0),
+    source: String(context.source || 'web'),
+    references,
+  }
+}
+
 function buildSongPrompt(event) {
-  return `\n你是一位专业中文吉他弹唱编曲助手。\n请根据用户需求生成“可直接练习”的中文吉他弹唱谱。\n\n硬性要求：\n1) 只输出 JSON，不要输出任何额外文字。\n2) JSON 字段必须包含：title, style, song_key, bpm, capo, difficulty, strumming, chords, sections, practiceTips\n3) sections 为数组，每个元素包含：name, lines\n4) lines 为数组，每行包含：chordLine, lyricLine\n5) chords 为和弦名数组，如 [\"C\",\"G\",\"Am\",\"F\"]\n6) practiceTips 提供 2-4 条具体练习建议\n\n用户需求：\n- 模式：${event.type || 'songwriting'}\n- 风格：${event.style || '民谣'}\n- 难度：${event.difficulty || '新手'}\n- 调式：${event.song_key || 'C'}\n- 写歌灵感：${event.prompt || ''}\n- 歌词（若有）：${event.lyrics || ''}\n\n请返回严格 JSON。\n`
+  const webContext = buildWebContext(event)
+  const isWebChords = event.type === 'web_chords'
+  const webLines = webContext.references
+    .map((item, index) => `${index + 1}. ${item.title} ${item.snippet}`.trim())
+    .join('\n')
+
+  const commonRules = `\n硬性要求：\n1) 只输出 JSON，不要输出任何额外文字。\n2) JSON 字段必须包含：title, style, song_key, bpm, capo, difficulty, strumming, chords, sections, practiceTips\n3) sections 为数组，每个元素包含：name, lines\n4) lines 为数组，每行包含：chordLine, lyricLine\n5) chords 为和弦名数组，如 [\"C\",\"G\",\"Am\",\"F\"]\n6) practiceTips 提供 2-4 条具体练习建议\n`
+
+  if (isWebChords) {
+    return `\n你是一位专业中文吉他弹唱编曲助手。\n请根据歌曲名称、歌手与网络摘要，生成“AI 简化弹唱编配版”吉他谱。\n\n重要版权边界：\n1) 不要复制、复刻或输出第三方网站的完整歌词。\n2) 不要复制任何现成吉他谱、TAB、逐字和弦谱。\n3) 不要声称这是官方谱或原版谱。\n4) 你要生成适合练习的原创简化编配，可使用少量占位式歌词短句或节拍提示。\n${commonRules}\n歌曲信息：\n- 歌名：${webContext.title || event.title || ''}\n- 歌手：${webContext.artist || event.artist || ''}\n- 难度：${event.difficulty || '新手'}\n- 目标调式：${event.song_key || 'C'}\n- 网络摘要：${webContext.summary || ''}\n- 参考摘要：\n${webLines || '无'}\n\n请返回严格 JSON。title 建议使用“${webContext.title || event.title || '目标歌曲'} AI简化弹唱版”。\n`
+  }
+
+  return `\n你是一位专业中文吉他弹唱编曲助手。\n请根据用户需求生成“可直接练习”的中文吉他弹唱谱。\n${commonRules}\n用户需求：\n- 模式：${event.type || 'songwriting'}\n- 风格：${event.style || '民谣'}\n- 难度：${event.difficulty || '新手'}\n- 调式：${event.song_key || 'C'}\n- 写歌灵感：${event.prompt || ''}\n- 歌词（若有）：${event.lyrics || ''}\n\n请返回严格 JSON。\n`
 }
 
 function resolveEnvId(wxContext) {
@@ -195,12 +231,14 @@ async function getCurrentUser(openid) {
   return result.data[0] || null
 }
 
-exports.main = async (event) => {
+exports.main = async (event = {}) => {
   const wxContext = cloud.getWXContext()
-  const openid = wxContext.OPENID || event.openid || "debug-openid"
+  const openid = wxContext.OPENID || event.openid || 'debug-openid'
   const now = new Date()
+  const webContext = buildWebContext(event)
+  const isWebChords = event.type === 'web_chords'
 
-  const sourceText = String(event.prompt || event.lyrics || '')
+  const sourceText = String(event.prompt || event.lyrics || event.title || webContext.title || webContext.summary || '')
   if (!reviewContent(sourceText)) {
     return { code: 403, message: '内容审核未通过，请调整后重试' }
   }
@@ -241,7 +279,9 @@ exports.main = async (event) => {
       parsed = JSON.parse(jsonText)
     } catch (_error) {
       parsed = {
-        title: event.type === 'chords' ? '歌词配和弦结果' : 'AI原创弹唱歌',
+        title: isWebChords
+          ? `${webContext.title || event.title || '目标歌曲'} AI简化弹唱版`
+          : event.type === 'chords' ? '歌词配和弦结果' : 'AI原创弹唱歌',
         style: event.style || '民谣',
         song_key: event.song_key || 'C',
         difficulty: event.difficulty || '新手',
@@ -252,7 +292,9 @@ exports.main = async (event) => {
     }
 
     const normalized = normalizeSongPayload(parsed, {
-      title: event.type === 'chords' ? '歌词配和弦结果' : 'AI原创弹唱歌',
+      title: isWebChords
+        ? `${webContext.title || event.title || '目标歌曲'} AI简化弹唱版`
+        : event.type === 'chords' ? '歌词配和弦结果' : 'AI原创弹唱歌',
       style: event.style || '民谣',
       song_key: event.song_key || 'C',
       difficulty: event.difficulty || '新手',
@@ -260,29 +302,40 @@ exports.main = async (event) => {
     })
 
     const rawText = sectionsToRawText(normalized.sections)
+    const isPublic = Boolean(event.is_public) && !isWebChords
     const data = {
       user_openid: openid,
       user_id: user._id,
       title: normalized.title,
-      artist_name: 'AI生成',
+      artist_name: isWebChords ? (webContext.artist || event.artist || 'AI编配') : 'AI生成',
+      original_song_title: isWebChords ? (webContext.title || event.title || '') : '',
+      original_artist_name: isWebChords ? (webContext.artist || event.artist || '') : '',
       style: normalized.style,
       song_key: normalized.song_key,
       bpm: normalized.bpm,
       capo: normalized.capo,
       difficulty: normalized.difficulty,
       strumming: normalized.strumming,
-      tags: ['AI', normalized.style],
+      tags: isWebChords ? ['AI编配', '网络搜索', normalized.style] : ['AI', normalized.style],
       raw_text: rawText,
       content_json: {
         sections: normalized.sections,
         chords: normalized.chords,
         practiceTips: normalized.practiceTips,
+        copyrightNotice: isWebChords ? 'AI 生成的简化弹唱编配，非官方曲谱。' : '',
       },
-      source_type: 'ai',
+      generation_source: isWebChords ? {
+        type: 'web_search',
+        provider: webContext.source || 'web',
+        confidence: webContext.confidence || 0,
+        summary: webContext.summary || '',
+        references: webContext.references,
+      } : null,
+      source_type: isWebChords ? 'ai_web' : 'ai',
       edit_mode: 'ai',
-      is_public: Boolean(event.is_public),
-      visibility: event.is_public ? 'public' : 'private',
-      audit_status: event.is_public ? 'pending' : 'private',
+      is_public: isPublic,
+      visibility: isPublic ? 'public' : 'private',
+      audit_status: isPublic ? 'pending' : 'private',
       favorite_count: 0,
       like_count: 0,
       comment_count: 0,
@@ -320,6 +373,7 @@ exports.main = async (event) => {
         chords: normalized.chords,
         sections: normalized.sections,
         practiceTips: normalized.practiceTips,
+        source_type: data.source_type,
         user: {
           id: user._id,
           generation_quota: nextGenerationQuota,
