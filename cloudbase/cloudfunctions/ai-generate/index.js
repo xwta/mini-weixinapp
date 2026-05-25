@@ -121,25 +121,41 @@ function sectionsToRawText(sections = []) {
 
 function sanitizeReferences(references = []) {
   return (Array.isArray(references) ? references : [])
-    .slice(0, 5)
+    .slice(0, 8)
     .map((item) => ({
       title: String(item?.title || '').slice(0, 120),
       url: String(item?.url || '').slice(0, 500),
       snippet: String(item?.snippet || '').slice(0, 180),
+      category: String(item?.category || '').slice(0, 40),
+      provider: String(item?.provider || '').slice(0, 40),
+      tab_score: Number(item?.tab_score || 0),
     }))
     .filter((item) => item.title || item.url || item.snippet)
+}
+
+function sanitizeHints(hints = {}) {
+  return {
+    possibleKeys: Array.isArray(hints.possibleKeys) ? hints.possibleKeys.map(String).slice(0, 4) : [],
+    possibleCapos: Array.isArray(hints.possibleCapos) ? hints.possibleCapos.map(String).slice(0, 4) : [],
+    possibleChords: Array.isArray(hints.possibleChords) ? hints.possibleChords.map(String).slice(0, 12) : [],
+    tabReferenceCount: Number(hints.tabReferenceCount || 0),
+  }
 }
 
 function buildWebContext(event = {}) {
   const context = event.web_context || {}
   const references = sanitizeReferences(context.references)
+  const tabReferences = sanitizeReferences(context.tabReferences)
+  const arrangementHints = sanitizeHints(context.arrangementHints)
   return {
     title: String(event.title || context.title || '').trim(),
     artist: String(event.artist || context.artist || '').trim(),
-    summary: String(context.summary || '').slice(0, 500),
+    summary: String(context.summary || '').slice(0, 800),
     confidence: Number(context.confidence || 0),
     source: String(context.source || 'web'),
     references,
+    tabReferences,
+    arrangementHints,
   }
 }
 
@@ -149,11 +165,20 @@ function buildSongPrompt(event) {
   const webLines = webContext.references
     .map((item, index) => `${index + 1}. ${item.title} ${item.snippet}`.trim())
     .join('\n')
+  const tabLines = webContext.tabReferences
+    .map((item, index) => `${index + 1}. ${item.title} ${item.snippet}`.trim())
+    .join('\n')
+  const hintLines = [
+    webContext.arrangementHints.possibleKeys.length ? `疑似调式：${webContext.arrangementHints.possibleKeys.join('、')}` : '',
+    webContext.arrangementHints.possibleCapos.length ? `疑似变调夹：${webContext.arrangementHints.possibleCapos.join('、')}` : '',
+    webContext.arrangementHints.possibleChords.length ? `线索中出现的和弦：${webContext.arrangementHints.possibleChords.join('、')}` : '',
+    webContext.arrangementHints.tabReferenceCount ? `吉他谱/和弦谱线索数量：${webContext.arrangementHints.tabReferenceCount}` : '',
+  ].filter(Boolean).join('\n')
 
   const commonRules = `\n硬性要求：\n1) 只输出 JSON，不要输出任何额外文字。\n2) JSON 字段必须包含：title, style, song_key, bpm, capo, difficulty, strumming, chords, sections, practiceTips\n3) sections 为数组，每个元素包含：name, lines\n4) lines 为数组，每行包含：chordLine, lyricLine\n5) chords 为和弦名数组，如 [\"C\",\"G\",\"Am\",\"F\"]\n6) practiceTips 提供 2-4 条具体练习建议\n`
 
   if (isWebChords) {
-    return `\n你是一位专业中文吉他弹唱编曲助手。\n请根据歌曲名称、歌手与网络摘要，生成“AI 简化弹唱编配版”吉他谱。\n\n重要版权边界：\n1) 不要复制、复刻或输出第三方网站的完整歌词。\n2) 不要复制任何现成吉他谱、TAB、逐字和弦谱。\n3) 不要声称这是官方谱或原版谱。\n4) 你要生成适合练习的原创简化编配，可使用少量占位式歌词短句或节拍提示。\n${commonRules}\n歌曲信息：\n- 歌名：${webContext.title || event.title || ''}\n- 歌手：${webContext.artist || event.artist || ''}\n- 难度：${event.difficulty || '新手'}\n- 目标调式：${event.song_key || 'C'}\n- 网络摘要：${webContext.summary || ''}\n- 参考摘要：\n${webLines || '无'}\n\n请返回严格 JSON。title 建议使用“${webContext.title || event.title || '目标歌曲'} AI简化弹唱版”。\n`
+    return `\n你是一位专业中文吉他弹唱编曲助手。\n请根据歌曲名称、歌手、音乐元数据和吉他谱搜索线索，生成“AI 简化弹唱编配版”吉他谱。\n\n重要版权边界：\n1) 不要复制、复刻或输出第三方网站的完整歌词。\n2) 不要复制任何现成吉他谱、TAB、逐字和弦谱。\n3) 不要声称这是官方谱或原版谱。\n4) 吉他谱/和弦谱线索只能用来判断风格、难度、可能调式、变调夹和常见和弦走向。\n5) 你要生成适合练习的原创简化编配，可使用少量占位式歌词短句、段落提示或节拍提示。\n6) 如果线索中出现疑似调式、变调夹、常见和弦，优先参考；但不要机械照抄。\n${commonRules}\n歌曲信息：\n- 歌名：${webContext.title || event.title || ''}\n- 歌手：${webContext.artist || event.artist || ''}\n- 难度：${event.difficulty || '新手'}\n- 目标调式：${event.song_key || 'C'}\n- 网络摘要：${webContext.summary || ''}\n\n编配线索：\n${hintLines || '无明确调式、变调夹或和弦线索'}\n\n音乐元数据参考摘要：\n${webLines || '无'}\n\n吉他谱/和弦谱搜索线索摘要：\n${tabLines || '无'}\n\n生成偏好：\n- 优先生成新手可弹版本。\n- 和弦数量建议 4-8 个。\n- 若疑似原曲较复杂，请降级为 C/G 调附近的弹唱版。\n- 每个段落给出清晰 chordLine 和 lyricLine，占位歌词不要超过短句级别。\n\n请返回严格 JSON。title 建议使用“${webContext.title || event.title || '目标歌曲'} AI简化弹唱版”。\n`
   }
 
   return `\n你是一位专业中文吉他弹唱编曲助手。\n请根据用户需求生成“可直接练习”的中文吉他弹唱谱。\n${commonRules}\n用户需求：\n- 模式：${event.type || 'songwriting'}\n- 风格：${event.style || '民谣'}\n- 难度：${event.difficulty || '新手'}\n- 调式：${event.song_key || 'C'}\n- 写歌灵感：${event.prompt || ''}\n- 歌词（若有）：${event.lyrics || ''}\n\n请返回严格 JSON。\n`
@@ -283,10 +308,11 @@ exports.main = async (event = {}) => {
           ? `${webContext.title || event.title || '目标歌曲'} AI简化弹唱版`
           : event.type === 'chords' ? '歌词配和弦结果' : 'AI原创弹唱歌',
         style: event.style || '民谣',
-        song_key: event.song_key || 'C',
+        song_key: event.song_key || webContext.arrangementHints.possibleKeys[0] || 'C',
+        capo: webContext.arrangementHints.possibleCapos[0] || '0品',
         difficulty: event.difficulty || '新手',
         sections: [{ name: '正文', lines: [{ chordLine: 'C G Am F', lyricLine: sourceText || '今天也要认真练琴。' }] }],
-        chords: ['C', 'G', 'Am', 'F'],
+        chords: webContext.arrangementHints.possibleChords.length ? webContext.arrangementHints.possibleChords.slice(0, 6) : ['C', 'G', 'Am', 'F'],
         practiceTips: ['先慢后快，分段练习。'],
       }
     }
@@ -296,7 +322,8 @@ exports.main = async (event = {}) => {
         ? `${webContext.title || event.title || '目标歌曲'} AI简化弹唱版`
         : event.type === 'chords' ? '歌词配和弦结果' : 'AI原创弹唱歌',
       style: event.style || '民谣',
-      song_key: event.song_key || 'C',
+      song_key: event.song_key || webContext.arrangementHints.possibleKeys[0] || 'C',
+      capo: webContext.arrangementHints.possibleCapos[0] || '0品',
       difficulty: event.difficulty || '新手',
       lyrics: sourceText,
     })
@@ -316,13 +343,14 @@ exports.main = async (event = {}) => {
       capo: normalized.capo,
       difficulty: normalized.difficulty,
       strumming: normalized.strumming,
-      tags: isWebChords ? ['AI编配', '网络搜索', normalized.style] : ['AI', normalized.style],
+      tags: isWebChords ? ['AI编配', '网络搜索', '吉他谱线索', normalized.style] : ['AI', normalized.style],
       raw_text: rawText,
       content_json: {
         sections: normalized.sections,
         chords: normalized.chords,
         practiceTips: normalized.practiceTips,
         copyrightNotice: isWebChords ? 'AI 生成的简化弹唱编配，非官方曲谱。' : '',
+        arrangementHints: isWebChords ? webContext.arrangementHints : null,
       },
       generation_source: isWebChords ? {
         type: 'web_search',
@@ -330,6 +358,8 @@ exports.main = async (event = {}) => {
         confidence: webContext.confidence || 0,
         summary: webContext.summary || '',
         references: webContext.references,
+        tabReferences: webContext.tabReferences,
+        arrangementHints: webContext.arrangementHints,
       } : null,
       source_type: isWebChords ? 'ai_web' : 'ai',
       edit_mode: 'ai',
