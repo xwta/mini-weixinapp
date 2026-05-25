@@ -3,7 +3,8 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 
 const DEFAULT_TIMEOUT_MS = 6500
-const MAX_RESULTS = 5
+const MAX_RESULTS = 8
+const MAX_QUERY_VARIANTS = 5
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000
 const USER_AGENT = process.env.MUSICBRAINZ_USER_AGENT || 'PulingAI/1.0 (mini-weixinapp; contact: cloudbase)'
 
@@ -17,9 +18,9 @@ function jsonResponse(code, dataOrMessage) {
 
 function normalizeKeyword(keyword = '') {
   return String(keyword || '')
-    .replace(/吉他谱|曲谱|谱子|弹唱谱|和弦谱|歌词|歌曲/g, '')
-    .replace(/[《》]/g, '')
-    .replace(/\s+/g, ' ')
+    .replace(/吉他谱|曲谱|谱子|弹唱谱|和弦谱|歌词|歌曲|简谱|完整版|原版|简单版|教学|指弹|尤克里里/g, '')
+    .replace(/[《》【】\[\]（）()]/g, ' ')
+    .replace(/[\s\-_·,，、。:：|｜/\\]+/g, ' ')
     .trim()
 }
 
@@ -124,14 +125,30 @@ function compactReferences(references = []) {
     .slice(0, MAX_RESULTS)
 }
 
+function buildQueryVariants(keyword) {
+  const original = String(keyword || '').trim()
+  const clean = normalizeKeyword(original) || original
+  const variants = [
+    clean,
+    original,
+    clean.replace(/\s+/g, ''),
+    `${clean} 歌手`,
+    `${clean} song`,
+    `${clean} lyrics`,
+    `${clean} chords`,
+  ]
+
+  return Array.from(new Set(variants.map((item) => item.trim()).filter(Boolean))).slice(0, MAX_QUERY_VARIANTS)
+}
+
 function scoreByKeyword(keyword, title, artist = '') {
   const clean = normalizeKeyword(keyword).toLowerCase()
   const text = `${title || ''} ${artist || ''}`.toLowerCase()
   if (!clean || !text) return 0.56
-  if (text.includes(clean)) return 0.9
+  if (text.includes(clean)) return 0.92
   const tokens = clean.split(/[\s/·,，、-]+/).filter(Boolean)
   const hit = tokens.filter((token) => text.includes(token)).length
-  return Math.min(0.86, 0.52 + hit * 0.12)
+  return Math.min(0.88, 0.52 + hit * 0.12)
 }
 
 function mergeCandidates(candidates = []) {
@@ -164,7 +181,7 @@ function mergeCandidates(candidates = []) {
     .slice(0, MAX_RESULTS)
 }
 
-async function searchMusicBrainz(keyword) {
+async function searchMusicBrainz(keyword, originalKeyword = keyword) {
   const cleanKeyword = normalizeKeyword(keyword) || keyword
   const now = Date.now()
   const wait = Math.max(0, 1100 - (now - lastMusicBrainzAt))
@@ -188,7 +205,7 @@ async function searchMusicBrainz(keyword) {
         .join(' / ')
       const firstRelease = item.releases?.[0] || {}
       const title = stripHtml(item.title || cleanKeyword)
-      const confidence = scoreByKeyword(cleanKeyword, title, artist)
+      const confidence = scoreByKeyword(originalKeyword, title, artist)
       const urlId = item.id ? `https://musicbrainz.org/recording/${item.id}` : 'https://musicbrainz.org/'
 
       return {
@@ -211,7 +228,7 @@ async function searchMusicBrainz(keyword) {
     .filter((item) => item.title)
 }
 
-async function searchItunes(keyword) {
+async function searchItunes(keyword, originalKeyword = keyword) {
   const cleanKeyword = normalizeKeyword(keyword) || keyword
   const url = `https://itunes.apple.com/search?term=${encodeURIComponent(cleanKeyword)}&media=music&entity=song&country=CN&limit=${MAX_RESULTS}`
   const data = await requestJson(url, {
@@ -226,7 +243,7 @@ async function searchItunes(keyword) {
       const title = stripHtml(item.trackName || cleanKeyword)
       const artist = stripHtml(item.artistName || '')
       const album = stripHtml(item.collectionName || '')
-      const confidence = scoreByKeyword(cleanKeyword, title, artist)
+      const confidence = scoreByKeyword(originalKeyword, title, artist)
 
       return {
         title,
@@ -363,7 +380,8 @@ exports.main = async (event = {}) => {
   if (!keyword) return jsonResponse(400, '请输入要搜索的歌曲关键词')
 
   const cleanKeyword = normalizeKeyword(keyword) || keyword
-  const cacheKey = `songLookup:${cleanKeyword.toLowerCase()}`
+  const queryVariants = buildQueryVariants(keyword)
+  const cacheKey = `songLookup:${cleanKeyword.toLowerCase()}:${queryVariants.join('|').toLowerCase()}`
   const cached = getCache(cacheKey)
   if (cached) return jsonResponse(0, cached)
 
@@ -372,31 +390,39 @@ exports.main = async (event = {}) => {
     let candidates = []
 
     if (provider === 'open' || provider === 'auto') {
-      const [musicBrainz, itunes] = await Promise.all([
-        searchMusicBrainz(cleanKeyword).catch((error) => {
-          console.log('musicbrainz search failed', error?.message || error)
+      const itunesJobs = queryVariants.map((query) => searchItunes(query, cleanKeyword).catch((error) => {
+        console.log('itunes search failed', query, error?.message || error)
+        return []
+      }))
+      const itunesResults = (await Promise.all(itunesJobs)).flat()
+
+      const musicBrainzResults = []
+      for (const query of queryVariants.slice(0, 3)) {
+        const result = await searchMusicBrainz(query, cleanKeyword).catch((error) => {
+          console.log('musicbrainz search failed', query, error?.message || error)
           return []
-        }),
-        searchItunes(cleanKeyword).catch((error) => {
-          console.log('itunes search failed', error?.message || error)
-          return []
-        }),
-      ])
-      candidates = mergeCandidates([...musicBrainz, ...itunes])
+        })
+        musicBrainzResults.push(...result)
+      }
+
+      candidates = mergeCandidates([...itunesResults, ...musicBrainzResults])
     }
 
-    if (!candidates.length && (provider === 'tavily' || provider === 'auto')) {
-      candidates = mergeCandidates(await searchWithTavily(`${cleanKeyword} 歌曲 歌手`).catch(() => []))
+    if ((!candidates.length || provider === 'auto') && (provider === 'tavily' || provider === 'auto')) {
+      const tavilyResults = await searchWithTavily(`${cleanKeyword} 歌曲 歌手 吉他弹唱`).catch(() => [])
+      candidates = mergeCandidates([...candidates, ...tavilyResults])
     }
 
-    if (!candidates.length && (provider === 'brave' || provider === 'auto')) {
-      candidates = mergeCandidates(await searchWithBrave(`${cleanKeyword} 歌曲 歌手`).catch(() => []))
+    if ((!candidates.length || provider === 'auto') && (provider === 'brave' || provider === 'auto')) {
+      const braveResults = await searchWithBrave(`${cleanKeyword} 歌曲 歌手 吉他弹唱`).catch(() => [])
+      candidates = mergeCandidates([...candidates, ...braveResults])
     }
 
     if (!candidates.length) candidates = [fallbackCandidate(keyword)]
 
     const response = {
       query: keyword,
+      queryVariants,
       candidates,
       canGenerate: true,
       provider,
