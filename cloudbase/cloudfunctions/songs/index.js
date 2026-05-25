@@ -1,4 +1,5 @@
 const cloud = require('wx-server-sdk')
+const seedSongs = require('./seed-songs.json')
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 
@@ -17,12 +18,92 @@ function normalizeSong(item = {}) {
   return {
     ...item,
     id: toSongId(item),
+    has_tab: item.has_tab !== false,
     favorite_count: Number(item.favorite_count || 0),
     like_count: Number(item.like_count || 0),
     view_count: Number(item.view_count || 0),
     comment_count: Number(item.comment_count || 0),
     practice_count: Number(item.practice_count || 0),
   }
+}
+
+function normalizeText(text = '') {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[《》【】\[\]（）()]/g, ' ')
+    .replace(/吉他谱|曲谱|谱子|弹唱谱|和弦谱|歌词|歌曲|简谱|完整版|原版|c调|g调|新手|简单版/g, ' ')
+    .replace(/[\s\-_·,，、。:：|｜/\\]+/g, ' ')
+    .trim()
+}
+
+function uniqueStrings(items = []) {
+  return Array.from(new Set(items.map((item) => String(item || '').trim()).filter(Boolean)))
+}
+
+function buildSearchKeywords(song = {}) {
+  const aliases = Array.isArray(song.aliases) ? song.aliases : []
+  const tags = Array.isArray(song.tags) ? song.tags : Array.isArray(song.tags_json) ? song.tags_json : []
+  const existing = Array.isArray(song.search_keywords) ? song.search_keywords : []
+  const title = song.title || ''
+  const artist = song.artist_name || song.author_name || ''
+  const pinyin = song.pinyin || ''
+  const initials = song.initials || ''
+
+  return uniqueStrings([
+    ...existing,
+    title,
+    artist,
+    `${title} ${artist}`,
+    `${artist} ${title}`,
+    `${title} 吉他谱`,
+    `${title} 弹唱`,
+    `${title} 和弦`,
+    pinyin,
+    initials,
+    ...aliases,
+    ...tags,
+    song.style,
+    song.song_key,
+    song.difficulty,
+  ])
+}
+
+function scoreSong(item = {}, rawKeyword = '') {
+  const keyword = normalizeText(rawKeyword)
+  if (!keyword) return 1
+
+  const title = normalizeText(item.title)
+  const artist = normalizeText(item.artist_name || item.author_name)
+  const pinyin = normalizeText(item.pinyin)
+  const initials = normalizeText(item.initials)
+  const aliases = (Array.isArray(item.aliases) ? item.aliases : []).map(normalizeText)
+  const searchKeywords = buildSearchKeywords(item).map(normalizeText)
+  const haystack = uniqueStrings([title, artist, pinyin, initials, ...aliases, ...searchKeywords]).join(' ')
+  const tokens = keyword.split(' ').filter(Boolean)
+
+  let score = 0
+  if (title === keyword) score += 120
+  if (artist && `${title} ${artist}` === keyword) score += 115
+  if (artist && `${artist} ${title}` === keyword) score += 115
+  if (title && title.includes(keyword)) score += 90
+  if (keyword.includes(title) && title.length >= 2) score += 75
+  if (artist && artist.includes(keyword)) score += 55
+  if (pinyin && pinyin.includes(keyword)) score += 58
+  if (initials && initials === keyword) score += 65
+  if (aliases.some((alias) => alias.includes(keyword) || keyword.includes(alias))) score += 70
+  if (searchKeywords.some((word) => word === keyword)) score += 62
+  if (searchKeywords.some((word) => word.includes(keyword) || keyword.includes(word))) score += 42
+
+  const tokenHits = tokens.filter((token) => haystack.includes(token)).length
+  score += tokenHits * 18
+
+  if (item.has_tab === false) score -= 6
+  if (item.source_type === 'seed') score -= 4
+  score += Math.min(20, Number(item.like_count || 0) * 0.2)
+  score += Math.min(16, Number(item.favorite_count || 0) * 0.2)
+  score += Math.min(12, Number(item.view_count || 0) * 0.02)
+
+  return score
 }
 
 function parseRawTab(rawText = '') {
@@ -72,11 +153,103 @@ function paginate(items = [], page = 1, pageSize = 20) {
   }
 }
 
+function buildSeedSongData(seed = {}, now = new Date()) {
+  const title = String(seed.title || '').trim()
+  const artistName = String(seed.artist_name || '').trim()
+  const aliases = Array.isArray(seed.aliases) ? seed.aliases : []
+  const data = {
+    title,
+    artist_name: artistName,
+    style: seed.style || '弹唱',
+    song_key: seed.song_key || 'C',
+    bpm: seed.bpm || null,
+    capo: seed.capo || '0品',
+    difficulty: seed.difficulty || '新手',
+    strumming: seed.strumming || '',
+    tags: uniqueStrings(['热门', 'seed', 'AI可生成', ...(seed.tags || [])]),
+    aliases,
+    pinyin: seed.pinyin || '',
+    initials: seed.initials || '',
+    raw_text: '',
+    content_json: {
+      sections: [],
+      chords: [],
+      practiceTips: [],
+      seedNotice: '热门歌曲种子数据，暂无完整曲谱，可 AI 生成简化弹唱编配版。',
+    },
+    source_type: 'seed',
+    edit_mode: 'seed',
+    has_tab: false,
+    is_public: true,
+    visibility: 'public',
+    audit_status: 'seed',
+    favorite_count: 0,
+    like_count: 0,
+    comment_count: 0,
+    view_count: 0,
+    practice_count: 0,
+    created_at: now,
+    updated_at: now,
+  }
+
+  data.search_keywords = buildSearchKeywords(data)
+  return data
+}
+
 exports.main = async (event = {}) => {
   const wxContext = cloud.getWXContext()
-  const openid = wxContext.OPENID || event.openid || "debug-openid"
+  const openid = wxContext.OPENID || event.openid || 'debug-openid'
   const action = event.action || 'search'
   const now = new Date()
+
+  if (action === 'seedImport') {
+    const token = event.token || process.env.SEED_IMPORT_TOKEN || ''
+    const expectedToken = process.env.SEED_IMPORT_TOKEN || ''
+    if (expectedToken && token !== expectedToken) return { code: 403, message: '无权限导入种子曲库' }
+
+    const dryRun = Boolean(event.dryRun)
+    const limit = Math.min(Number(event.limit || seedSongs.length), seedSongs.length)
+    const source = seedSongs.slice(0, limit).filter((item) => item.title && item.artist_name)
+    let created = 0
+    let updated = 0
+    let skipped = 0
+    const samples = []
+
+    for (const seed of source) {
+      const data = buildSeedSongData(seed, now)
+      const existed = await songs.where({ title: data.title, artist_name: data.artist_name, source_type: 'seed' }).limit(1).get()
+      samples.push(`${data.title}-${data.artist_name}`)
+      if (dryRun) {
+        skipped += 1
+        continue
+      }
+      if (existed.data.length) {
+        await songs.doc(existed.data[0]._id).update({
+          data: {
+            ...data,
+            created_at: existed.data[0].created_at || now,
+            updated_at: now,
+          },
+        })
+        updated += 1
+      } else {
+        await songs.add({ data })
+        created += 1
+      }
+    }
+
+    return {
+      code: 0,
+      data: {
+        dryRun,
+        total: source.length,
+        created,
+        updated,
+        skipped,
+        samples: samples.slice(0, 10),
+      },
+    }
+  }
 
   if (action === 'manualCreate') {
     const user = await getCurrentUser(openid)
@@ -97,10 +270,14 @@ exports.main = async (event = {}) => {
       difficulty: event.difficulty || '新手',
       strumming: event.strumming || '',
       tags: Array.isArray(event.tags) ? event.tags : [],
+      aliases: Array.isArray(event.aliases) ? event.aliases : [],
+      pinyin: event.pinyin || '',
+      initials: event.initials || '',
       raw_text: rawText,
       content_json: contentJson,
       source_type: 'user_upload',
       edit_mode: 'manual',
+      has_tab: true,
       is_public: Boolean(event.is_public),
       visibility: event.is_public ? 'public' : 'private',
       audit_status: event.is_public ? 'pending' : 'private',
@@ -112,6 +289,7 @@ exports.main = async (event = {}) => {
       created_at: now,
       updated_at: now,
     }
+    data.search_keywords = buildSearchKeywords(data)
 
     const result = await songs.add({ data })
     await users.doc(user._id).update({ data: { works_count: _.inc(1), updated_at: now } })
@@ -171,8 +349,11 @@ exports.main = async (event = {}) => {
   }
 
   if (action === 'search') {
-    const keyword = String(event.keyword || '').trim().toLowerCase()
+    const keyword = String(event.keyword || '').trim()
+    const normalizedKeyword = normalizeText(keyword)
     const difficulty = String(event.difficulty || '').trim()
+    const songKey = String(event.song_key || '').trim()
+    const sourceType = String(event.source_type || '').trim()
     const page = Number(event.page || 1)
     const pageSize = Math.min(50, Number(event.page_size || 20))
     const sort = event.sort || 'created_at'
@@ -180,18 +361,23 @@ exports.main = async (event = {}) => {
 
     let query = songs.where({ is_public: true })
     if (difficulty) query = songs.where({ is_public: true, difficulty })
+    if (sourceType) query = songs.where({ is_public: true, source_type: sourceType })
 
     const result = await query.orderBy(sortField, 'desc').get()
-    let items = result.data.map((item) => normalizeSong(item))
+    let items = result.data.map((item) => normalizeSong({
+      ...item,
+      search_keywords: Array.isArray(item.search_keywords) ? item.search_keywords : buildSearchKeywords(item),
+    }))
 
-    if (keyword) {
-      items = items.filter((item) => {
-        const haystack = [item.title, item.artist_name, item.style, item.song_key]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase()
-        return haystack.includes(keyword)
-      })
+    if (songKey) {
+      items = items.filter((item) => String(item.song_key || '').toLowerCase() === songKey.toLowerCase())
+    }
+
+    if (normalizedKeyword) {
+      items = items
+        .map((item) => ({ ...item, _search_score: scoreSong(item, keyword) }))
+        .filter((item) => item._search_score > 0)
+        .sort((a, b) => Number(b._search_score || 0) - Number(a._search_score || 0))
     }
 
     return { code: 0, data: paginate(items, page, pageSize) }
