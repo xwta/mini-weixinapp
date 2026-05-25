@@ -38,6 +38,14 @@
             </view>
           </view>
 
+          <WebSongSuggestionCard
+            v-if="webCandidate"
+            :candidate="webCandidate"
+            :loading="webGenerating"
+            @generate="generateFromWebCandidate"
+            @searchAgain="focusInput"
+          />
+
           <AiResultCard
             v-if="lastResult"
             :title="lastResult.title"
@@ -57,16 +65,16 @@
           v-model="inputText"
           class="chat-input"
           confirm-type="send"
-          :disabled="loading"
+          :disabled="loading || webGenerating"
           :focus="inputFocus"
-          :placeholder="loading ? '谱灵正在拨弦思考...' : placeholder"
+          :placeholder="loading || webGenerating ? '谱灵正在拨弦思考...' : placeholder"
           @confirm="sendMessage"
           @blur="inputFocus = false"
         />
         <view class="tool-btn" @tap="showToolTip('附件')">📎</view>
         <view class="tool-btn music-tool" @tap="selectMode('chord')">♪</view>
       </view>
-      <view :class="['send-btn', loading && 'loading']" @tap="sendMessage">{{ loading ? '生成中' : '发送' }}</view>
+      <view :class="['send-btn', (loading || webGenerating) && 'loading']" @tap="sendMessage">{{ loading || webGenerating ? '生成中' : '发送' }}</view>
     </view>
 
     <AppBottomTab active="chat" @change="handleTabChange" />
@@ -79,12 +87,15 @@ import HomeHero from '@/components/home/HomeHero.vue'
 import HomeModeGrid from '@/components/home/HomeModeGrid.vue'
 import ChatBubble from '@/components/home/ChatBubble.vue'
 import AiResultCard from '@/components/home/AiResultCard.vue'
+import WebSongSuggestionCard from '@/components/home/WebSongSuggestionCard.vue'
 import AppBottomTab from '@/components/home/AppBottomTab.vue'
 import { loginWithWechatProfile } from '@/api/auth'
-import { createChords, createSongwriting } from '@/api/ai'
+import { createChords, createSongwriting, createWebChords } from '@/api/ai'
 import { searchSongs } from '@/api/songs'
+import { searchWebSong } from '@/api/webSearch'
 import { useAuthStore } from '@/stores/auth'
 import type { AiSongResult } from '@/types'
+import type { WebSongCandidate } from '@/api/webSearch'
 
 interface ChatMessage {
   id: string
@@ -109,6 +120,8 @@ const scrollTop = ref(0)
 const inputFocus = ref(false)
 const placeholder = ref('输入你的音乐灵感...')
 const lastResult = ref<ResultCardState | null>(null)
+const webCandidate = ref<WebSongCandidate | null>(null)
+const webGenerating = ref(false)
 
 const messages = ref<ChatMessage[]>([
   {
@@ -150,6 +163,7 @@ function fillPrompt(prompt: string) {
 }
 
 function focusInput() {
+  placeholder.value = '换个歌名、歌手或风格再搜一次'
   inputFocus.value = true
 }
 
@@ -217,11 +231,68 @@ function normalizeChords(result: AiSongResult) {
   return result.chords?.length ? result.chords.join(' · ') : `${result.key || 'C'}调 · ${result.difficulty || '新手'}`
 }
 
+function resetSearchState() {
+  webCandidate.value = null
+  lastResult.value = null
+}
+
+async function lookupWebCandidate(text: string) {
+  await streamAiMessage('本地曲库没找到，我去网络里听听风声。')
+  const web = await searchWebSong(text)
+  const candidate = web.candidates?.[0]
+
+  if (!candidate) {
+    await streamAiMessage('网络里也没找到足够明确的歌曲信息。你可以补充歌手名，或者切到 AI 写歌让我自由创作。')
+    return
+  }
+
+  webCandidate.value = candidate
+  await streamAiMessage(`我找到了可能的歌曲：《${candidate.title}》${candidate.artist ? ` - ${candidate.artist}` : ''}。可以点按钮生成 AI 简化弹唱版。`)
+  nextTick(() => {
+    scrollTop.value += 520
+  })
+}
+
+async function generateFromWebCandidate() {
+  if (!webCandidate.value || webGenerating.value) return
+
+  webGenerating.value = true
+  try {
+    await ensureLogin()
+    const candidate = webCandidate.value
+    const result = await createWebChords({
+      title: candidate.title,
+      artist: candidate.artist,
+      key: 'C',
+      difficulty: '新手',
+      web_context: candidate,
+    })
+
+    if (!result.songId) {
+      await streamAiMessage('生成完成，但没有拿到曲谱 ID。请稍后重试一次。')
+      return
+    }
+
+    await streamAiMessage(`已生成《${result.title}》。这是 AI 简化弹唱编配版，适合先练起来。`)
+    lastResult.value = {
+      songId: result.songId,
+      title: result.title,
+      chords: normalizeChords(result),
+    }
+    webCandidate.value = null
+  } catch (error: any) {
+    await streamAiMessage(error?.message || '网络灵感和琴弦没对上，请稍后再试。')
+  } finally {
+    webGenerating.value = false
+  }
+}
+
 async function sendMessage() {
   const text = inputText.value.trim()
-  if (!text || loading.value) return
+  if (!text || loading.value || webGenerating.value) return
 
   inputText.value = ''
+  resetSearchState()
   pushMessage('user', text)
   loading.value = true
 
@@ -231,7 +302,7 @@ async function sendMessage() {
     if (route === 'search' || route === 'practice') {
       const result = await searchSongs({ keyword: text, page_size: 5 })
       if (!result.items.length) {
-        await streamAiMessage('暂时没搜到合适曲谱。你可以换个关键词，或者让我直接生成一首。')
+        await lookupWebCandidate(text)
         return
       }
 
