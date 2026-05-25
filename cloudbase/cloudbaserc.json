@@ -19,6 +19,7 @@
     { "name": "router", "timeout": 60, "runtime": "Nodejs18.15" },
     { "name": "ai-generate", "timeout": 60, "runtime": "Nodejs18.15" },
     { "name": "ai-image", "timeout": 60, "runtime": "Nodejs18.15" },
+    { "name": "web-search", "timeout": 10, "runtime": "Nodejs18.15" },
     { "name": "comments", "timeout": 10, "runtime": "Nodejs18.15" },
     { "name": "notifications", "timeout": 10, "runtime": "Nodejs18.15" },
     { "name": "interactions", "timeout": 15, "runtime": "Nodejs18.15" },
