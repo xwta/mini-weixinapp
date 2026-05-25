@@ -1,5 +1,32 @@
 # CloudBase Changelog
 
+## v0.1.2
+
+### Added
+
+- 新增 `web-search` 云函数，用于本地曲库搜不到时识别联网歌曲候选。
+- `web-search` 默认支持无 API Key 模式，优先使用 MusicBrainz 与 iTunes Search 获取歌曲元数据。
+- `web-search` 支持可选增强搜索：Tavily 与 Brave Search。
+- 新增前端 API：`apps/miniprogram/src/api/webSearch.ts`。
+- 新增前端组件：`WebSongSuggestionCard.vue`，用于展示网络候选歌曲与 AI 生成按钮。
+- `ai-generate` 新增 `type=web_chords`，可根据联网歌曲候选生成 AI 简化弹唱编配版。
+- `apps/miniprogram/src/api/ai.ts` 新增 `createWebChords`。
+
+### Changed
+
+- `pages/chat/index.vue` 搜谱逻辑升级：本地曲库无结果时，自动调用 `web-search`，并在用户确认后再生成 AI 吉他谱。
+- `web_chords` 生成结果默认私有，`source_type=ai_web`，并记录 `generation_source`。
+- 更新 `README.md`，同步 `web-search`、无 Key 联网歌曲识别、`web_chords` 生成链路与部署说明。
+- 更新 `CLOUDBASE_API.md`，补充 `web-search` 和 `ai-generate type=web_chords` API 文档。
+- 更新 `CLOUDBASE_DEPLOY.md`，补充 `web-search` 部署顺序、环境变量、上线检查与常见问题。
+- 更新 `CLOUDBASE_FRONTEND_GUIDE.md`，补充前端搜索链路、`webSearch.ts`、`WebSongSuggestionCard` 和 `createWebChords`。
+
+### Notes
+
+- 联网搜索只用于识别歌曲元数据，不复制第三方完整歌词或现成吉他谱。
+- 默认无 Key 模式可直接部署使用；生产建议配置 `MUSICBRAINZ_USER_AGENT`。
+- 如需更强网页搜索，可配置 `WEB_SEARCH_PROVIDER=auto` 并添加 `TAVILY_API_KEY` 或 `BRAVE_SEARCH_API_KEY`。
+
 ## v0.1.1
 
 ### Changed
