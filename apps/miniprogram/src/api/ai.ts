@@ -1,6 +1,7 @@
 import { request } from './provider'
 import { useAuthStore } from '../stores/auth'
 import type { AiSongResult } from '../types'
+import type { WebSongCandidate } from './webSearch'
 
 export interface SongwritingPayload {
   prompt: string
@@ -15,6 +16,14 @@ export interface ChordsPayload {
   key: string
   difficulty: string
   rhythm: string
+}
+
+export interface WebChordsPayload {
+  title: string
+  artist?: string
+  key: string
+  difficulty: string
+  web_context: WebSongCandidate
 }
 
 function normalize(result: any): AiSongResult {
@@ -67,6 +76,19 @@ export async function createChords(payload: ChordsPayload) {
     song_key: payload.key,
     difficulty: payload.difficulty,
     rhythm: payload.rhythm,
+  })
+  syncQuotaFromResult(result)
+  return normalize(result)
+}
+
+export async function createWebChords(payload: WebChordsPayload) {
+  const result = await request('ai-generate', {
+    type: 'web_chords',
+    title: payload.title,
+    artist: payload.artist || '',
+    song_key: payload.key,
+    difficulty: payload.difficulty,
+    web_context: payload.web_context,
   })
   syncQuotaFromResult(result)
   return normalize(result)
