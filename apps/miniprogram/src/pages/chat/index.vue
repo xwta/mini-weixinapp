@@ -94,7 +94,7 @@ import { createChords, createSongwriting, createWebChords } from '@/api/ai'
 import { searchSongs } from '@/api/songs'
 import { searchWebSong } from '@/api/webSearch'
 import { useAuthStore } from '@/stores/auth'
-import type { AiSongResult } from '@/types'
+import type { AiSongResult, Song } from '@/types'
 import type { WebSongCandidate } from '@/api/webSearch'
 
 interface ChatMessage {
@@ -236,6 +236,17 @@ function resetSearchState() {
   lastResult.value = null
 }
 
+function seedSongToCandidate(song: Song | any): WebSongCandidate {
+  return {
+    title: song.title || '未命名歌曲',
+    artist: song.artist_name || song.author_name || '',
+    confidence: Math.min(0.92, Math.max(0.62, Number(song._search_score || 78) / 100)),
+    source: 'seed',
+    summary: `热门曲库已识别《${song.title || '这首歌'}》${song.artist_name ? ` - ${song.artist_name}` : ''}，暂无完整曲谱，可生成 AI 简化弹唱编配版。`,
+    references: [],
+  }
+}
+
 async function lookupWebCandidate(text: string) {
   await streamAiMessage('本地曲库没找到，我去网络里听听风声。')
   const web = await searchWebSong(text)
@@ -306,7 +317,16 @@ async function sendMessage() {
         return
       }
 
-      const first = result.items[0]
+      const first = result.items[0] as Song | any
+      if (first.has_tab === false || first.source_type === 'seed') {
+        webCandidate.value = seedSongToCandidate(first)
+        await streamAiMessage(`热门曲库里找到了《${first.title}》${first.artist_name ? ` - ${first.artist_name}` : ''}，但还没有完整曲谱。可以点按钮生成 AI 简化弹唱版。`)
+        nextTick(() => {
+          scrollTop.value += 520
+        })
+        return
+      }
+
       await streamAiMessage(`找到 ${result.items.length} 首相关曲谱。最匹配的是《${first.title}》，可以直接打开练习。`)
       lastResult.value = {
         songId: first.id,
