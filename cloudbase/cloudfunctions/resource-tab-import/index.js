@@ -7,7 +7,7 @@ const songs = db.collection('songs')
 const users = db.collection('users')
 
 const TIMEOUT_MS = 5200
-const TARGET_FETCH_BYTES = 360 * 1024
+const TARGET_FETCH_BYTES = 420 * 1024
 const MAX_RAW_TEXT = 18000
 
 const CHORD_RE = /^[A-G](?:#|b)?(?:m|maj|min|dim|aug|sus|add)?(?:2|4|5|6|7|9|11|13)?(?:\/[A-G](?:#|b)?)?$/i
@@ -20,6 +20,33 @@ const TRUSTED_TEXT_DOMAINS = [
 ]
 
 const BLOCKED_URL_RE = /(?:image\.baidu\.com|video|shipin|download|down|app|login|user|search\/index|\/search\?|\.pdf$|\.jpg$|\.jpeg$|\.png$|\.webp$|\.gif$)/i
+
+const SITE_EXTRACTORS = [
+  {
+    name: '52cmajor',
+    match: (host) => host.endsWith('52cmajor.com'),
+    selectors: ['article', 'main', 'content', 'detail', 'pu', 'tab', 'chord', 'entry', 'post'],
+    scoreBoost: 28,
+  },
+  {
+    name: 'jita5',
+    match: (host) => host.endsWith('jita5.com'),
+    selectors: ['article', 'main', 'content', 'detail', 'pu', 'tab', 'chord', 'entry', 'post'],
+    scoreBoost: 26,
+  },
+  {
+    name: 'jitabang',
+    match: (host) => host.endsWith('jitabang.com'),
+    selectors: ['article', 'main', 'content', 'detail', 'pu', 'tab', 'chord', 'entry', 'post'],
+    scoreBoost: 26,
+  },
+  {
+    name: 'qupu123',
+    match: (host) => host.endsWith('qupu123.com'),
+    selectors: ['article', 'main', 'content', 'detail', 'pu', 'tab', 'chord', 'entry', 'post'],
+    scoreBoost: 22,
+  },
+]
 
 function jsonResponse(code, dataOrMessage) {
   if (code === 0) return { code, data: dataOrMessage }
@@ -43,7 +70,7 @@ function stripHtml(text = '') {
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>|<\/div>|<\/li>|<\/tr>|<\/h[1-6]>/gi, '\n')
+    .replace(/<\/p>|<\/div>|<\/li>|<\/tr>|<\/h[1-6]>|<\/section>|<\/article>/gi, '\n')
     .replace(/<[^>]*>/g, ' ')
     .replace(/\r/g, '')
     .replace(/[ \t]+/g, ' ')
@@ -75,6 +102,11 @@ function parseHost(url = '') {
 function isTrustedDomain(url = '') {
   const host = parseHost(url)
   return TRUSTED_TEXT_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`))
+}
+
+function getSiteExtractor(url = '') {
+  const host = parseHost(url)
+  return SITE_EXTRACTORS.find((item) => item.match(host)) || null
 }
 
 function assertImportableEvent(event = {}) {
@@ -220,6 +252,23 @@ function extractJsonLikeText(html = '') {
   return rows.join('\n')
 }
 
+function extractClassBlocks(html = '', keys = []) {
+  const blocks = []
+  const keyPart = keys.length ? keys.join('|') : 'content|article|tab|chord|post|main|entry|pu|info|detail'
+  const patterns = [
+    new RegExp(`<(?:(?:article)|(?:main)|(?:section)|(?:div))[^>]+(?:class|id)=(['"])[^'"]*(?:${keyPart})[^'"]*\\1[^>]*>([\\s\\S]{160,90000}?)<\\/(?:(?:article)|(?:main)|(?:section)|(?:div))>`, 'gi'),
+    new RegExp(`<pre[^>]*>([\\s\\S]{80,60000}?)<\\/pre>`, 'gi'),
+    new RegExp(`<textarea[^>]*>([\\s\\S]{80,60000}?)<\\/textarea>`, 'gi'),
+  ]
+  patterns.forEach((pattern) => {
+    let match
+    while ((match = pattern.exec(html)) && blocks.length < 20) {
+      blocks.push(stripHtml(match[2] || match[1] || ''))
+    }
+  })
+  return blocks.filter(Boolean)
+}
+
 function keywordWindows(html = '', query = '') {
   const cleanQuery = compactText(query)
   const plain = stripHtml(html)
@@ -233,17 +282,21 @@ function keywordWindows(html = '', query = '') {
   return windows
 }
 
-function pickTextCandidateFromHtml(html = '', query = '') {
+function pickTextCandidateFromHtml(html = '', query = '', url = '') {
   const candidates = []
-  candidates.push(...Array.from(html.matchAll(/<(pre|textarea)[^>]*>([\s\S]*?)<\/\1>/gi)).map((m) => stripHtml(m[2])))
-  candidates.push(...Array.from(html.matchAll(/<(?:article|main|section|div)[^>]+(?:class|id)=(['"])[^'"]*(?:content|article|tab|chord|post|main|entry|pu|info|detail)[^'"]*\1[^>]*>([\s\S]{200,70000}?)<\/(?:article|main|section|div)>/gi)).map((m) => stripHtml(m[2])))
+  const extractor = getSiteExtractor(url)
+  if (extractor) {
+    candidates.push(...extractClassBlocks(html, extractor.selectors).map((text) => `${text}\n`))
+  }
+  candidates.push(...extractClassBlocks(html))
   const jsonText = extractJsonLikeText(html)
   if (jsonText) candidates.push(jsonText.slice(0, 24000))
   candidates.push(...keywordWindows(html, query))
+  const siteBoost = extractor?.scoreBoost || 0
   return candidates
     .map((text) => text.replace(/\n{3,}/g, '\n\n').trim())
     .filter((text) => text.length >= 120)
-    .sort((a, b) => (textScore(b, query) - textScore(a, query)) || (b.length - a.length))[0] || ''
+    .sort((a, b) => ((textScore(b, query) + siteBoost) - (textScore(a, query) + siteBoost)) || (b.length - a.length))[0] || ''
 }
 
 function parseSongMeta(rawText = '', event = {}) {
@@ -300,11 +353,12 @@ function parseRawTab(rawText = '') {
 
 async function tryExtractFromUrl(link = {}, event = {}) {
   const query = inferSearchQuery(event)
-  const html = await requestTargetSlice(link.url, { byteLimit: isTrustedDomain(link.url) ? 420 * 1024 : TARGET_FETCH_BYTES })
-  const text = pickTextCandidateFromHtml(html, query || link.title)
-  const score = textScore(text, query || link.title)
-  if (score < 34) throw new Error('目标页面未命中曲谱正文')
-  return { rawText: text, sourceUrl: link.url, pageTitle: link.title || event.title || '网络文本谱', score, fetchMode: 'strict-importable-slice' }
+  const isSite = Boolean(getSiteExtractor(link.url))
+  const html = await requestTargetSlice(link.url, { byteLimit: isSite || isTrustedDomain(link.url) ? 520 * 1024 : TARGET_FETCH_BYTES })
+  const text = pickTextCandidateFromHtml(html, query || link.title, link.url)
+  const score = textScore(text, query || link.title) + (isSite ? 18 : 0)
+  if (score < (isSite ? 28 : 34)) throw new Error('目标页面未命中曲谱正文')
+  return { rawText: text, sourceUrl: link.url, pageTitle: link.title || event.title || '网络文本谱', score, fetchMode: isSite ? 'site-adapter-extract' : 'strict-importable-slice' }
 }
 
 async function resolveTextSource(event = {}) {
