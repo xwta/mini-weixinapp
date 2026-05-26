@@ -14,11 +14,10 @@
         v-for="(ref, index) in topReferences"
         :key="`${ref.url}-${index}`"
         class="ref-preview-item"
-        @tap="openResource(ref)"
       >
-        <image v-if="ref.thumbnail_url" class="ref-thumb" :src="ref.thumbnail_url" mode="aspectFill" />
-        <view v-else class="ref-thumb ref-thumb--empty">谱</view>
-        <view class="ref-main">
+        <image v-if="ref.thumbnail_url" class="ref-thumb" :src="ref.thumbnail_url" mode="aspectFill" @tap="openImageResource(ref)" />
+        <view v-else class="ref-thumb ref-thumb--empty" @tap="importTextResource(ref)">谱</view>
+        <view class="ref-main" @tap="importTextResource(ref)">
           <view class="ref-title-row">
             <text class="ref-title">{{ ref.title }}</text>
             <text class="type-pill" :class="`type-pill--${getRefType(ref)}`">{{ getRefTypeLabel(ref) }}</text>
@@ -29,7 +28,10 @@
             <text class="ref-score">{{ Math.round(ref.tab_score || 0) }}分</text>
           </view>
         </view>
-        <view class="open-btn">{{ openingUrl === getResourceKey(ref) ? '打开中' : '打开' }}</view>
+        <view class="button-col">
+          <view class="open-btn" @tap.stop="openImageResource(ref)">{{ openingUrl === getResourceKey(ref) ? '打开中' : '图片' }}</view>
+          <view class="import-btn" @tap.stop="importTextResource(ref)">{{ importingUrl === getResourceKey(ref) ? '导入中' : '内置谱' }}</view>
+        </view>
       </view>
     </view>
 
@@ -53,7 +55,7 @@
       </view>
     </view>
 
-    <view class="notice">点“打开”会先把图片谱下载成小程序本地临时文件，再直接预览。AI 生成只是兜底。</view>
+    <view class="notice">“图片”预览图片谱；“内置谱”会搜索/解析TXT或网页文本谱，并跳转到小程序详情页。</view>
 
     <view class="actions">
       <view class="ghost-btn" @tap="emit('searchAgain')">换个关键词</view>
@@ -65,6 +67,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { previewResourceImage } from '@/api/resourcePreview'
+import { importResourceTab } from '@/api/resourceTabImport'
 import type { ResourcePreviewResult } from '@/api/resourcePreview'
 import type { WebSearchReference, WebSongCandidate } from '@/api/webSearch'
 
@@ -81,6 +84,7 @@ const emit = defineEmits<{
 }>()
 
 const openingUrl = ref('')
+const importingUrl = ref('')
 
 const topReferences = computed(() => {
   const refs = props.candidates.flatMap((item) => item.tabReferences || item.references || [])
@@ -135,7 +139,7 @@ function buildSearchQuery(ref: WebSearchReference) {
   return parts || ref.title || candidate?.title || ''
 }
 
-async function openResource(ref: WebSearchReference) {
+async function openImageResource(ref: WebSearchReference) {
   const key = getResourceKey(ref)
   if (!key) {
     uni.showToast({ title: '资源链接为空', icon: 'none' })
@@ -157,12 +161,45 @@ async function openResource(ref: WebSearchReference) {
     const message = error?.message || '图片谱打开失败'
     uni.showModal({
       title: '图片谱打开失败',
-      content: `${message}\n\n已为你复制原始资源链接，可在浏览器或百度中打开。`,
+      content: `${message}\n\n可尝试点击“内置谱”导入文本谱。`,
       showCancel: false,
     })
-    copyResourceUrl(ref.url || ref.image_url || ref.thumbnail_url || '', false)
   } finally {
     openingUrl.value = ''
+  }
+}
+
+async function importTextResource(ref: WebSearchReference) {
+  const key = getResourceKey(ref)
+  if (!key) {
+    uni.showToast({ title: '资源链接为空', icon: 'none' })
+    return
+  }
+  importingUrl.value = key
+  try {
+    uni.showLoading({ title: '导入文本谱' })
+    const candidate = primaryCandidate.value
+    const result = await importResourceTab({
+      title: ref.title,
+      song_title: candidate?.title || ref.title,
+      artist: candidate?.artist || '',
+      url: ref.url,
+      search_query: buildSearchQuery(ref),
+    })
+    uni.hideLoading()
+    uni.showToast({ title: '已导入内置谱', icon: 'success' })
+    setTimeout(() => {
+      uni.navigateTo({ url: `/pages/song-detail/index?id=${result.songId}` })
+    }, 260)
+  } catch (error: any) {
+    uni.hideLoading()
+    uni.showModal({
+      title: '文本谱导入失败',
+      content: error?.message || '没有解析到可用TXT/网页文本谱，可以换一个资源或使用图片谱。',
+      showCancel: false,
+    })
+  } finally {
+    importingUrl.value = ''
   }
 }
 
@@ -183,9 +220,7 @@ async function previewFromCloudResult(result: ResourcePreviewResult, ref: WebSea
         })
         return
       }
-    } catch (_error) {
-      // 继续使用 tempFileURL 兜底
-    }
+    } catch (_error) {}
   }
   // #endif
 
@@ -195,26 +230,15 @@ async function previewFromCloudResult(result: ResourcePreviewResult, ref: WebSea
 function previewByTempUrl(tempFileURL: string, sourceUrl = '') {
   if (!tempFileURL) {
     uni.hideLoading()
-    copyResourceUrl(sourceUrl, true)
+    if (sourceUrl) uni.setClipboardData({ data: sourceUrl })
     return
   }
   uni.hideLoading()
   uni.previewImage({
     urls: [tempFileURL],
     current: tempFileURL,
-    fail: () => copyResourceUrl(sourceUrl || tempFileURL, true),
-  })
-}
-
-function copyResourceUrl(url: string, showToast = true) {
-  if (!url) return
-  uni.setClipboardData({
-    data: url,
-    success: () => {
-      if (showToast) uni.showToast({ title: '资源链接已复制', icon: 'success' })
-    },
     fail: () => {
-      uni.showModal({ title: '资源链接', content: url, showCancel: false })
+      if (sourceUrl) uni.setClipboardData({ data: sourceUrl })
     },
   })
 }
@@ -232,254 +256,36 @@ function copyResourceUrl(url: string, showToast = true) {
   box-shadow: 0 12rpx 34rpx rgba(18, 52, 36, 0.06);
   animation: cardIn .22s ease-out;
 }
-
-.card-head {
-  display: flex;
-  align-items: center;
-}
-
-.icon-box {
-  width: 72rpx;
-  height: 72rpx;
-  margin-right: 18rpx;
-  border-radius: 24rpx;
-  background: #EAF8F0;
-  color: #0BA45A;
-  font-size: 36rpx;
-  font-weight: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.head-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.eyebrow {
-  color: #0BA45A;
-  font-size: 22rpx;
-  line-height: 28rpx;
-  font-weight: 800;
-}
-
-.title {
-  margin-top: 6rpx;
-  color: #17231E;
-  font-size: 31rpx;
-  line-height: 40rpx;
-  font-weight: 900;
-}
-
-.count {
-  min-width: 72rpx;
-  height: 48rpx;
-  padding: 0 14rpx;
-  border-radius: 999rpx;
-  background: #F0FBF5;
-  color: #0BA45A;
-  font-size: 22rpx;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-}
-
-.ref-preview-list,
-.result-list {
-  margin-top: 18rpx;
-}
-
-.ref-preview-item,
-.result-item {
-  margin-top: 14rpx;
-  padding: 14rpx;
-  border-radius: 20rpx;
-  background: #FAFDFB;
-  border: 1rpx solid #E8EFEA;
-  display: flex;
-  align-items: center;
-}
-
-.ref-thumb {
-  width: 92rpx;
-  height: 92rpx;
-  margin-right: 16rpx;
-  border-radius: 16rpx;
-  background: #EAF8F0;
-  flex-shrink: 0;
-}
-
-.ref-thumb--empty {
-  color: #0BA45A;
-  font-size: 28rpx;
-  font-weight: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.ref-main,
-.song-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.ref-title-row,
-.song-title-row {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.ref-title,
-.song-title {
-  flex: 1;
-  min-width: 0;
-  color: #17231E;
-  font-size: 24rpx;
-  line-height: 32rpx;
-  font-weight: 800;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.type-pill {
-  height: 32rpx;
-  margin-left: 10rpx;
-  padding: 0 10rpx;
-  border-radius: 999rpx;
-  font-size: 18rpx;
-  line-height: 32rpx;
-  font-weight: 800;
-  flex-shrink: 0;
-}
-
-.type-pill--image {
-  color: #B66D00;
-  background: #FFF4DC;
-}
-
-.type-pill--text {
-  color: #0A7ACC;
-  background: #E8F4FF;
-}
-
-.type-pill--fallback,
-.type-pill--web {
-  color: #0BA45A;
-  background: #EAF8F0;
-}
-
-.ref-snippet,
-.artist,
-.summary {
-  display: block;
-  margin-top: 6rpx;
-  color: #7B8580;
-  font-size: 21rpx;
-  line-height: 30rpx;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.ref-meta-row {
-  margin-top: 8rpx;
-  display: flex;
-  gap: 10rpx;
-}
-
-.ref-provider,
-.ref-score {
-  color: #9AA49F;
-  font-size: 19rpx;
-  line-height: 24rpx;
-}
-
-.open-btn,
-.choose-btn {
-  width: 82rpx;
-  height: 48rpx;
-  margin-left: 12rpx;
-  border-radius: 999rpx;
-  background: #0BA45A;
-  color: #FFFFFF;
-  font-size: 20rpx;
-  font-weight: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.rank {
-  width: 42rpx;
-  height: 42rpx;
-  margin-right: 16rpx;
-  border-radius: 999rpx;
-  background: #EAF8F0;
-  color: #0BA45A;
-  font-size: 22rpx;
-  font-weight: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.score {
-  margin-left: 10rpx;
-  color: #0BA45A;
-  font-size: 21rpx;
-  font-weight: 800;
-  flex-shrink: 0;
-}
-
-.notice {
-  margin-top: 18rpx;
-  color: #A06A15;
-  background: #FFF8E8;
-  border-radius: 18rpx;
-  padding: 14rpx 18rpx;
-  font-size: 22rpx;
-  line-height: 32rpx;
-}
-
-.actions {
-  margin-top: 22rpx;
-  display: flex;
-  gap: 14rpx;
-}
-
-.ghost-btn {
-  flex: 1;
-  height: 68rpx;
-  border-radius: 999rpx;
-  background: #F6FAF8;
-  color: #5F6B65;
-  border: 1rpx solid #E8EFEA;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 25rpx;
-  font-weight: 800;
-}
-
-.ghost-btn--ai {
-  color: #0BA45A;
-  background: #EAF8F0;
-  border-color: #D8F0E4;
-}
-
-@keyframes cardIn {
-  from { opacity: 0; transform: translateY(12rpx); }
-  to { opacity: 1; transform: translateY(0); }
-}
+.card-head { display: flex; align-items: center; }
+.icon-box { width: 72rpx; height: 72rpx; margin-right: 18rpx; border-radius: 24rpx; background: #EAF8F0; color: #0BA45A; font-size: 36rpx; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.head-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.eyebrow { color: #0BA45A; font-size: 22rpx; line-height: 28rpx; font-weight: 800; }
+.title { margin-top: 6rpx; color: #17231E; font-size: 31rpx; line-height: 40rpx; font-weight: 900; }
+.count { min-width: 72rpx; height: 48rpx; padding: 0 14rpx; border-radius: 999rpx; background: #F0FBF5; color: #0BA45A; font-size: 22rpx; font-weight: 800; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.ref-preview-list, .result-list { margin-top: 18rpx; }
+.ref-preview-item, .result-item { margin-top: 14rpx; padding: 14rpx; border-radius: 20rpx; background: #FAFDFB; border: 1rpx solid #E8EFEA; display: flex; align-items: center; }
+.ref-thumb { width: 92rpx; height: 92rpx; margin-right: 16rpx; border-radius: 16rpx; background: #EAF8F0; flex-shrink: 0; }
+.ref-thumb--empty { color: #0BA45A; font-size: 28rpx; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+.ref-main, .song-main { flex: 1; min-width: 0; }
+.ref-title-row, .song-title-row { display: flex; align-items: center; min-width: 0; }
+.ref-title, .song-title { flex: 1; min-width: 0; color: #17231E; font-size: 24rpx; line-height: 32rpx; font-weight: 800; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.type-pill { height: 32rpx; margin-left: 10rpx; padding: 0 10rpx; border-radius: 999rpx; font-size: 18rpx; line-height: 32rpx; font-weight: 800; flex-shrink: 0; }
+.type-pill--image { color: #B66D00; background: #FFF4DC; }
+.type-pill--text { color: #0A7ACC; background: #E8F4FF; }
+.type-pill--fallback, .type-pill--web { color: #0BA45A; background: #EAF8F0; }
+.ref-snippet, .artist, .summary { display: block; margin-top: 6rpx; color: #7B8580; font-size: 21rpx; line-height: 30rpx; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ref-meta-row { margin-top: 8rpx; display: flex; gap: 10rpx; }
+.ref-provider, .ref-score { color: #9AA49F; font-size: 19rpx; line-height: 24rpx; }
+.button-col { width: 90rpx; margin-left: 12rpx; display: flex; flex-direction: column; gap: 10rpx; flex-shrink: 0; }
+.open-btn, .import-btn, .choose-btn { height: 46rpx; border-radius: 999rpx; color: #FFFFFF; font-size: 19rpx; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+.open-btn { background: #0BA45A; }
+.import-btn { background: #17231E; }
+.choose-btn { width: 74rpx; margin-left: 12rpx; background: #0BA45A; flex-shrink: 0; }
+.rank { width: 42rpx; height: 42rpx; margin-right: 16rpx; border-radius: 999rpx; background: #EAF8F0; color: #0BA45A; font-size: 22rpx; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.score { margin-left: 10rpx; color: #0BA45A; font-size: 21rpx; font-weight: 800; flex-shrink: 0; }
+.notice { margin-top: 18rpx; color: #A06A15; background: #FFF8E8; border-radius: 18rpx; padding: 14rpx 18rpx; font-size: 22rpx; line-height: 32rpx; }
+.actions { margin-top: 22rpx; display: flex; gap: 14rpx; }
+.ghost-btn { flex: 1; height: 68rpx; border-radius: 999rpx; background: #F6FAF8; color: #5F6B65; border: 1rpx solid #E8EFEA; display: flex; align-items: center; justify-content: center; font-size: 25rpx; font-weight: 800; }
+.ghost-btn--ai { color: #0BA45A; background: #EAF8F0; border-color: #D8F0E4; }
+@keyframes cardIn { from { opacity: 0; transform: translateY(12rpx); } to { opacity: 1; transform: translateY(0); } }
 </style>
