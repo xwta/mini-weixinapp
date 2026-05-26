@@ -70,7 +70,7 @@ const transposeOffset = ref(0)
 let timer: ReturnType<typeof setInterval> | null = null
 
 const SHARP_NOTES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
-const FLAT_TO_SHARP: Record<string, string> = { Db: 'C#', D♭: 'C#', Eb: 'Eb', E♭: 'Eb', Gb: 'F#', G♭: 'F#', Ab: 'Ab', A♭: 'Ab', Bb: 'Bb', B♭: 'Bb' }
+const FLAT_TO_SHARP: Record<string, string> = { 'Db': 'C#', 'D♭': 'C#', 'Eb': 'Eb', 'E♭': 'Eb', 'Gb': 'F#', 'G♭': 'F#', 'Ab': 'Ab', 'A♭': 'Ab', 'Bb': 'Bb', 'B♭': 'Bb' }
 const CHORD_RE = /^([A-G](?:#|b|♭)?)(.*)$/
 const CHORD_TOKEN_RE = /([A-G](?:#|b|♭)?(?:m|maj|min|dim|aug|sus|add)?(?:2|4|5|6|7|9|11|13)?(?:\/[A-G](?:#|b|♭)?)?)/g
 
