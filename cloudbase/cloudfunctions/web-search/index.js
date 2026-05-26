@@ -4,8 +4,8 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 
 const DEFAULT_TIMEOUT_MS = 6500
 const MAX_RESULTS = 8
-const MAX_QUERY_VARIANTS = 5
-const MAX_TAB_REFERENCES = 8
+const MAX_QUERY_VARIANTS = 6
+const MAX_TAB_REFERENCES = 10
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000
 const USER_AGENT = process.env.MUSICBRAINZ_USER_AGENT || 'PulingAI/1.0 (mini-weixinapp; contact: cloudbase)'
 const DDG_USER_AGENT = process.env.DDG_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
@@ -22,7 +22,7 @@ function jsonResponse(code, dataOrMessage) {
 
 function normalizeKeyword(keyword = '') {
   return String(keyword || '')
-    .replace(/吉他谱|曲谱|谱子|弹唱谱|和弦谱|歌词|歌曲|简谱|完整版|原版|简单版|教学|指弹|尤克里里/g, '')
+    .replace(/吉他谱|曲谱|谱子|弹唱谱|和弦谱|歌词|歌曲|简谱|完整版|原版|简单版|教学|指弹|尤克里里|六线谱|gtp|guitar|chords?|tabs?/gi, '')
     .replace(/[《》【】\[\]（）()]/g, ' ')
     .replace(/[\s\-_·,，、。:：|｜/\\]+/g, ' ')
     .trim()
@@ -128,6 +128,10 @@ async function requestJson(url, options = {}) {
   return JSON.parse(raw || '{}')
 }
 
+function uniqueStrings(items = []) {
+  return Array.from(new Set(items.map((item) => String(item || '').trim()).filter(Boolean)))
+}
+
 function compactReferences(references = [], max = MAX_RESULTS) {
   const seen = new Set()
   return references
@@ -135,7 +139,7 @@ function compactReferences(references = [], max = MAX_RESULTS) {
     .map((item) => ({
       title: stripHtml(item.title || '').slice(0, 120),
       url: safeUrl(item.url || ''),
-      snippet: stripHtml(item.snippet || '').slice(0, 180),
+      snippet: stripHtml(item.snippet || '').slice(0, 200),
       category: item.category || 'music_meta',
       provider: item.provider || item.source || '',
       tab_score: Number(item.tab_score || 0),
@@ -163,23 +167,29 @@ function buildQueryVariants(keyword) {
     `${clean} chords`,
   ]
 
-  return Array.from(new Set(variants.map((item) => item.trim()).filter(Boolean))).slice(0, MAX_QUERY_VARIANTS)
+  return uniqueStrings(variants).slice(0, MAX_QUERY_VARIANTS)
 }
 
 function buildTabQueryVariants(keyword) {
   const original = String(keyword || '').trim()
   const clean = normalizeKeyword(original) || original
+  const compact = clean.replace(/\s+/g, '')
   const variants = [
     `${clean} 吉他谱`,
+    `${compact} 吉他谱`,
     `${clean} 和弦谱`,
     `${clean} 弹唱谱`,
     `${clean} 六线谱`,
+    `${clean} 吉他谱 变调夹 和弦`,
     `${clean} chords`,
     `${clean} guitar chords`,
     `${clean} guitar tab`,
     `${clean} tab`,
+    `${clean} 吉他谱 site:jita5.com`,
+    `${clean} 吉他谱 site:jitabang.com`,
+    `${clean} 吉他谱 site:tan8.com`,
   ]
-  return Array.from(new Set(variants.map((item) => item.trim()).filter(Boolean))).slice(0, MAX_QUERY_VARIANTS)
+  return uniqueStrings(variants).slice(0, MAX_QUERY_VARIANTS + 4)
 }
 
 function scoreByKeyword(keyword, title, artist = '') {
@@ -200,13 +210,15 @@ function isTabLikeReference(reference = {}) {
 function scoreTabReference(reference = {}, keyword = '') {
   const text = `${reference.title || ''} ${reference.snippet || ''}`.toLowerCase()
   const clean = normalizeKeyword(keyword).toLowerCase()
+  const compactClean = clean.replace(/\s+/g, '')
   let score = 0
   if (isTabLikeReference(reference)) score += 45
-  if (/吉他谱|和弦谱|弹唱谱|六线谱/.test(text)) score += 28
+  if (/吉他谱|和弦谱|弹唱谱|六线谱/.test(text)) score += 30
   if (/chords|guitar chords|guitar tab|tabs/.test(text)) score += 18
   if (/变调夹|capo|c调|g调|d调|原调|选调/.test(text)) score += 16
   if (/c\s+g\s+am\s+f|c-g-am-f|g\s+d\s+em\s+c/.test(text)) score += 12
-  if (clean && text.includes(clean)) score += 25
+  if (clean && text.includes(clean)) score += 28
+  if (compactClean && text.replace(/\s+/g, '').includes(compactClean)) score += 28
   return score
 }
 
@@ -269,7 +281,7 @@ function mergeCandidates(candidates = []) {
   return Array.from(map.values())
     .map((candidate) => ({
       ...candidate,
-      confidence: Math.min(0.96, Number(candidate.confidence || 0) + Math.min(0.08, (candidate.tabReferences || []).length * 0.012)),
+      confidence: Math.min(0.96, Number(candidate.confidence || 0) + Math.min(0.1, (candidate.tabReferences || []).length * 0.014)),
     }))
     .sort((a, b) => Number(b.confidence || 0) - Number(a.confidence || 0))
     .slice(0, MAX_RESULTS)
@@ -388,7 +400,7 @@ function buildWebCandidate(query, references = [], source = 'web') {
   const title = cleanQuery || stripHtml(first.title || query).replace(/吉他谱|歌词|歌曲|和弦谱/g, '').trim()
   const artist = pickArtist(mergedText)
   const tabReferences = compactReferences(references.filter(isTabLikeReference), MAX_TAB_REFERENCES)
-  const confidence = references.length >= 3 ? 0.82 : references.length === 2 ? 0.72 : references.length ? 0.62 : 0
+  const confidence = tabReferences.length >= 3 ? 0.86 : tabReferences.length === 2 ? 0.76 : tabReferences.length ? 0.66 : references.length ? 0.56 : 0
 
   return {
     title: title || query,
@@ -396,12 +408,40 @@ function buildWebCandidate(query, references = [], source = 'web') {
     confidence,
     source,
     summary: tabReferences.length
-      ? `网络中找到 ${tabReferences.length} 条吉他谱/和弦谱线索，可生成 AI 简化弹唱编配版。`
-      : references.length ? `网络中找到 ${references.length} 条相关音乐资料，可生成 AI 简化弹唱编配版。` : '暂未找到足够可靠的网络资料。',
+      ? `网络中找到 ${tabReferences.length} 条吉他谱/和弦谱搜索线索。`
+      : references.length ? `网络中找到 ${references.length} 条相关音乐资料。` : '暂未找到足够可靠的网络资料。',
     references: compactReferences(references),
     tabReferences,
     arrangementHints: extractArrangementHints(references),
   }
+}
+
+function buildFallbackTabReferences(keyword = '') {
+  const clean = normalizeKeyword(keyword) || keyword
+  const queries = [
+    { provider: 'baidu', title: `百度搜索：${clean} 吉他谱`, query: `${clean} 吉他谱 和弦谱 弹唱谱` },
+    { provider: 'bing', title: `Bing搜索：${clean} 吉他谱`, query: `${clean} 吉他谱 和弦谱 弹唱谱` },
+    { provider: 'duckduckgo', title: `DuckDuckGo搜索：${clean} guitar chords`, query: `${clean} guitar chords tab` },
+    { provider: 'site-jita5', title: `站内搜索：${clean} 吉他谱`, query: `${clean} 吉他谱 site:jita5.com` },
+    { provider: 'site-jitabang', title: `站内搜索：${clean} 弹唱谱`, query: `${clean} 吉他谱 site:jitabang.com` },
+    { provider: 'site-tan8', title: `站内搜索：${clean} 和弦谱`, query: `${clean} 吉他谱 site:tan8.com` },
+  ]
+
+  return compactReferences(queries.map((item, index) => {
+    const url = item.provider === 'baidu'
+      ? `https://www.baidu.com/s?wd=${encodeURIComponent(item.query)}`
+      : item.provider === 'bing'
+        ? `https://www.bing.com/search?q=${encodeURIComponent(item.query)}`
+        : `https://duckduckgo.com/?q=${encodeURIComponent(item.query)}`
+    return {
+      title: item.title,
+      url,
+      snippet: `用于继续检索《${clean}》的吉他谱、和弦谱、弹唱谱、变调夹与调式线索，不抓取完整曲谱。`,
+      category: 'tab_reference',
+      provider: item.provider,
+      tab_score: 40 - index,
+    }
+  }), MAX_TAB_REFERENCES)
 }
 
 function parseDuckDuckGoHtml(html = '', query = '', category = 'tab_reference') {
@@ -428,11 +468,9 @@ function parseDuckDuckGoHtml(html = '', query = '', category = 'tab_reference') 
     if (ref.title && ref.url) results.push(ref)
   })
 
-  if (results.length) return compactReferences(results, MAX_RESULTS)
-
   const anchorRegex = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
   let match
-  while ((match = anchorRegex.exec(html)) && results.length < MAX_RESULTS) {
+  while (!results.length && (match = anchorRegex.exec(html)) && results.length < MAX_RESULTS) {
     const ref = {
       title: stripHtml(match[2]),
       url: safeUrl(match[1]),
@@ -538,7 +576,10 @@ async function searchTabReferences(queryVariants = [], provider = 'auto') {
   const jobs = []
   const useDuckDuckGo = provider === 'open' || provider === 'auto' || provider === 'duckduckgo'
   if (useDuckDuckGo) {
-    queryVariants.forEach((query) => jobs.push(searchWithDuckDuckGo(query, 'tab_reference').catch(() => [])))
+    queryVariants.forEach((query) => jobs.push(searchWithDuckDuckGo(query, 'tab_reference').catch((error) => {
+      console.log('duckduckgo tab search failed', query, error?.message || error)
+      return []
+    })))
   }
   if (provider === 'tavily' || provider === 'auto') {
     queryVariants.forEach((query) => jobs.push(searchWithTavily(query, 'tab_reference').catch(() => [])))
@@ -547,11 +588,10 @@ async function searchTabReferences(queryVariants = [], provider = 'auto') {
     queryVariants.forEach((query) => jobs.push(searchWithBrave(query, 'tab_reference').catch(() => [])))
   }
   const candidates = (await Promise.all(jobs)).flat().flat()
-  const references = compactReferences(candidates.flatMap((candidate) => [
+  return compactReferences(candidates.flatMap((candidate) => [
     ...(candidate.tabReferences || []),
     ...(candidate.references || []).filter(isTabLikeReference),
   ]), MAX_TAB_REFERENCES)
-  return references
 }
 
 function attachTabReferences(candidates = [], tabReferences = [], keyword = '') {
@@ -562,9 +602,10 @@ function attachTabReferences(candidates = [], tabReferences = [], keyword = '') 
     const candidate = buildWebCandidate(keyword, tabReferences, 'tab_reference')
     return [{
       ...candidate,
-      confidence: Math.max(candidate.confidence || 0, 0.62),
+      confidence: Math.max(candidate.confidence || 0, 0.7),
       tabReferences,
       arrangementHints: hints,
+      summary: `已找到 ${tabReferences.length} 条吉他谱/和弦谱搜索线索，可选择后生成 AI 简化弹唱版。`,
     }]
   }
 
@@ -575,7 +616,7 @@ function attachTabReferences(candidates = [], tabReferences = [], keyword = '') 
     return {
       ...candidate,
       source: Array.from(new Set([...(candidate.source || '').split('+').filter(Boolean), 'tab_reference'])).join('+'),
-      confidence: Math.min(0.96, Number(candidate.confidence || 0) + Math.min(0.1, mergedTabs.length * 0.015)),
+      confidence: Math.min(0.96, Number(candidate.confidence || 0) + Math.min(0.12, mergedTabs.length * 0.016)),
       tabReferences: mergedTabs,
       arrangementHints: mergedHints,
       summary: mergedTabs.length
@@ -601,22 +642,56 @@ function fallbackCandidate(query) {
   }
 }
 
+function buildTabLookupResponse(keyword, tabReferences, provider) {
+  const cleanKeyword = normalizeKeyword(keyword) || keyword
+  const refs = tabReferences.length ? tabReferences : buildFallbackTabReferences(cleanKeyword)
+  const candidate = buildWebCandidate(cleanKeyword, refs, tabReferences.length ? 'tab_lookup' : 'tab_lookup_fallback')
+  candidate.confidence = tabReferences.length ? Math.max(candidate.confidence || 0, 0.76) : 0.58
+  candidate.tabReferences = compactReferences(refs, MAX_TAB_REFERENCES)
+  candidate.references = compactReferences(refs, MAX_RESULTS)
+  candidate.arrangementHints = extractArrangementHints(refs)
+  candidate.summary = tabReferences.length
+    ? `找到 ${candidate.tabReferences.length} 条吉他谱/和弦谱搜索线索。`
+    : '当前免费网络搜索未返回稳定结果，已提供可继续检索的谱源搜索入口。'
+
+  return {
+    query: keyword,
+    queryVariants: [cleanKeyword],
+    tabQueryVariants: buildTabQueryVariants(keyword),
+    tabSearchEnabled: true,
+    candidates: [candidate],
+    canGenerate: true,
+    provider,
+    notice: '吉他谱搜索只展示公开搜索线索，不抓取、不复制第三方完整歌词或完整曲谱。',
+  }
+}
+
 exports.main = async (event = {}) => {
   const action = event.action || 'songLookup'
   const keyword = String(event.keyword || event.query || '').trim()
 
-  if (action !== 'songLookup') return jsonResponse(400, `Unknown action: ${action}`)
+  if (!['songLookup', 'tabLookup'].includes(action)) return jsonResponse(400, `Unknown action: ${action}`)
   if (!keyword) return jsonResponse(400, '请输入要搜索的歌曲关键词')
 
   const cleanKeyword = normalizeKeyword(keyword) || keyword
   const queryVariants = buildQueryVariants(keyword)
   const tabQueryVariants = buildTabQueryVariants(keyword)
-  const cacheKey = `songLookup:${cleanKeyword.toLowerCase()}:${queryVariants.join('|').toLowerCase()}:${tabQueryVariants.join('|').toLowerCase()}`
+  const provider = event.provider || process.env.WEB_SEARCH_PROVIDER || 'auto'
+  const cacheKey = `${action}:${provider}:${cleanKeyword.toLowerCase()}:${queryVariants.join('|').toLowerCase()}:${tabQueryVariants.join('|').toLowerCase()}`
   const cached = getCache(cacheKey)
   if (cached) return jsonResponse(0, cached)
 
   try {
-    const provider = event.provider || process.env.WEB_SEARCH_PROVIDER || 'auto'
+    if (action === 'tabLookup') {
+      const tabReferences = await searchTabReferences(tabQueryVariants, provider).catch((error) => {
+        console.log('tab lookup failed', error?.message || error)
+        return []
+      })
+      const response = buildTabLookupResponse(keyword, tabReferences, provider)
+      setCache(cacheKey, response)
+      return jsonResponse(0, response)
+    }
+
     let candidates = []
     let tabReferences = []
     const canSearchTabs = provider === 'open' || provider === 'auto' || provider === 'duckduckgo' || Boolean(process.env.TAVILY_API_KEY || process.env.BRAVE_SEARCH_API_KEY)
@@ -645,6 +720,9 @@ exports.main = async (event = {}) => {
         console.log('tab reference search failed', error?.message || error)
         return []
       })
+      if (!tabReferences.length && /吉他谱|和弦谱|弹唱谱|六线谱|chords?|tabs?/i.test(keyword)) {
+        tabReferences = buildFallbackTabReferences(cleanKeyword)
+      }
       candidates = attachTabReferences(candidates, tabReferences, cleanKeyword)
     }
 
