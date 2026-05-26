@@ -224,11 +224,66 @@ async function streamAiMessage(content: string) {
   })
 }
 
+function normalizeSearchText(text = '') {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[《》【】\[\]（）()]/g, ' ')
+    .replace(/吉他谱|曲谱|谱子|弹唱谱|和弦谱|歌词|歌曲|简谱|完整版|原版|c调|g调|d调|a调|e调|f调|b调|新手|简单版|教学|指弹|尤克里里/g, ' ')
+    .replace(/[\s\-_·,，、。:：|｜/\\]+/g, ' ')
+    .trim()
+}
+
+function compactSearchText(text = '') {
+  return normalizeSearchText(text).replace(/\s+/g, '')
+}
+
+function getSongSearchFields(song: Song | any) {
+  return [
+    song.title,
+    song.artist_name,
+    song.author_name,
+    song.pinyin,
+    song.initials,
+    song.search_fingerprint,
+    ...(Array.isArray(song.aliases) ? song.aliases : []),
+    ...(Array.isArray(song.search_keywords) ? song.search_keywords : []),
+    ...(Array.isArray(song.tags) ? song.tags : []),
+  ].filter(Boolean)
+}
+
+function isReliableLocalSong(song: Song | any, keywordText: string) {
+  const keyword = normalizeSearchText(keywordText)
+  const compactKeyword = compactSearchText(keywordText)
+  if (!keyword) return true
+
+  const title = normalizeSearchText(song.title)
+  const compactTitle = compactSearchText(song.title)
+  const score = Number(song._search_score || 0)
+  const fields = getSongSearchFields(song)
+  const haystack = fields.map(normalizeSearchText).join(' ')
+  const compactHaystack = fields.map(compactSearchText).join(' ')
+  const tokens = keyword.split(' ').filter((token) => token.length >= 2)
+
+  if (title && (title === keyword || title.includes(keyword) || keyword.includes(title))) return true
+  if (compactTitle && compactKeyword && (compactTitle === compactKeyword || compactTitle.includes(compactKeyword) || compactKeyword.includes(compactTitle))) return true
+  if (compactHaystack.includes(compactKeyword) && compactKeyword.length >= 2) return true
+  if (tokens.length && tokens.every((token) => haystack.includes(token))) return true
+
+  return score >= 45
+}
+
+function getReliableLocalSongs(items: any[] = [], keywordText: string) {
+  return items.filter((item) => isReliableLocalSong(item, keywordText))
+}
+
 function detectRoute(text: string): ModeValue {
   if (activeMode.value !== 'song') return activeMode.value
   if (/搜|找|曲谱|吉他谱|谱子/.test(text)) return 'search'
   if (/配和弦|和弦|歌词/.test(text) && text.length > 20) return 'chord'
   if (/练习|开始练|滚谱/.test(text)) return 'practice'
+  const compact = compactSearchText(text)
+  const looksLikeSongName = /^[\u4e00-\u9fa5a-zA-Z0-9·\-\s]+$/.test(text) && compact.length >= 2 && compact.length <= 18
+  if (looksLikeSongName && !/写一首|生成|创作|编一首|歌词|风格|民谣|摇滚|情歌/.test(text)) return 'search'
   return 'song'
 }
 
@@ -263,7 +318,7 @@ function seedSongToCandidate(song: Song | any): WebSongCandidate {
 }
 
 async function lookupWebCandidate(text: string) {
-  await streamAiMessage('本地曲库没找到，我先把网络搜索结果列出来，你确认是哪一首。')
+  await streamAiMessage('本地曲库没有可靠命中，我先把网络搜索结果列出来，你确认是哪一首。')
   const web = await searchWebSong(text)
   const candidates = web.candidates || []
 
@@ -344,15 +399,16 @@ async function sendMessage() {
     const route = detectRoute(text)
 
     if (route === 'search' || route === 'practice') {
-      const result = await searchSongs({ keyword: text, page_size: 5 })
-      if (!result.items.length) {
+      const result = await searchSongs({ keyword: text, page_size: 8 })
+      const reliableItems = getReliableLocalSongs(result.items, text)
+      if (!reliableItems.length) {
         await lookupWebCandidate(text)
         return
       }
 
-      const first = result.items[0] as Song | any
+      const first = reliableItems[0] as Song | any
       if (first.has_tab === false || first.source_type === 'seed' || first.source_type === 'seed_bulk') {
-        webCandidates.value = result.items
+        webCandidates.value = reliableItems
           .filter((item: any) => item.has_tab === false || item.source_type === 'seed' || item.source_type === 'seed_bulk')
           .map(seedSongToCandidate)
         webCandidate.value = null
@@ -364,7 +420,7 @@ async function sendMessage() {
         return
       }
 
-      await streamAiMessage(`找到 ${result.items.length} 首相关曲谱。最匹配的是《${first.title}》，可以直接打开练习。`)
+      await streamAiMessage(`找到 ${reliableItems.length} 首相关曲谱。最匹配的是《${first.title}》，可以直接打开练习。`)
       lastResult.value = {
         songId: first.id,
         title: first.title,
@@ -464,7 +520,7 @@ function handleTabChange(value: string) {
 
 .skeleton-page {
   width: 750rpx;
-  padding: calc(env(safe-area-inset-top) + 44rpx) 32rpx 0;
+  padding: calc(env(safe-area-inset-top) + 104rpx) 32rpx 0;
   box-sizing: border-box;
 }
 
