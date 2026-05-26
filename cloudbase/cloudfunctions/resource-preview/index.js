@@ -21,6 +21,8 @@ function decodeHtml(text = '') {
     .replace(/&quot;/g, '"')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
+    .replace(/\\u002f/gi, '/')
+    .replace(/\\\//g, '/')
     .replace(/&#x([0-9a-f]+);/gi, (_m, hex) => String.fromCharCode(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_m, num) => String.fromCharCode(parseInt(num, 10)))
 }
@@ -116,12 +118,7 @@ function requestRaw(url, accept = '*/*', maxBytes = MAX_BYTES) {
       const transport = parsed.protocol === 'http:' ? require('http') : require('https')
       const chunks = []
       let total = 0
-      req = transport.request({
-        method: 'GET',
-        hostname: parsed.hostname,
-        path: `${parsed.pathname}${parsed.search}`,
-        headers: headers(url, accept),
-      }, (res) => {
+      req = transport.request({ method: 'GET', hostname: parsed.hostname, path: `${parsed.pathname}${parsed.search}`, headers: headers(url, accept) }, (res) => {
         if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
           res.resume()
           const nextUrl = new URL(res.headers.location, url).toString()
@@ -162,9 +159,7 @@ async function requestText(url) {
 async function requestImage(url) {
   const { buffer, contentType } = await requestRaw(url, 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8', MAX_BYTES)
   const inferredType = inferImageType(buffer, contentType, url)
-  if (!ALLOWED_IMAGE_TYPES.includes(inferredType)) {
-    throw new Error('当前资源不是可预览图片')
-  }
+  if (!ALLOWED_IMAGE_TYPES.includes(inferredType)) throw new Error('当前资源不是可预览图片')
   return { buffer, contentType: inferredType, sourceUrl: url }
 }
 
@@ -201,9 +196,16 @@ function scoreImageCandidate(item = {}, query = '') {
   let score = 0
   if (/吉他谱|和弦谱|弹唱谱|六线谱|图片谱|gtp|tab|chord|c调|g调/.test(text)) score += 50
   if (compact && compactText.includes(compact)) score += 25
-  if (/52cmajor|iloveguitar|jita|tan8|jitabang|17jita/.test(text)) score += 12
+  if (/52cmajor|iloveguitar|jita|tan8|jitabang|17jita|qupu/.test(text)) score += 12
   if (/\.jpg|\.jpeg|\.png|\.webp/.test(text)) score += 8
   return score
+}
+
+function sortImageCandidates(candidates = [], query = '') {
+  return candidates
+    .filter((item) => item.image || item.thumb)
+    .map((item) => ({ ...item, score: Number(item.score || 0) || scoreImageCandidate({ title: item.title, url: item.page || item.image, thumb: item.thumb }, query) }))
+    .sort((a, b) => b.score - a.score)
 }
 
 async function findBaiduImage(searchQuery = '') {
@@ -211,26 +213,57 @@ async function findBaiduImage(searchQuery = '') {
   if (!query) throw new Error('缺少图片谱搜索词')
   const fullQuery = /吉他谱|和弦谱|弹唱谱|六线谱/.test(query) ? query : `${query} 吉他谱 高清图片谱`
   const encoded = encodeURIComponent(fullQuery)
-  const url = `https://image.baidu.com/search/acjson?tn=resultjson_com&ipn=rj&word=${encoded}&queryWord=${encoded}&pn=0&rn=18&ie=utf-8&oe=utf-8`
+  const url = `https://image.baidu.com/search/acjson?tn=resultjson_com&ipn=rj&word=${encoded}&queryWord=${encoded}&pn=0&rn=24&ie=utf-8&oe=utf-8`
   const { text } = await requestText(url)
-  const data = JSON.parse(text || '{}')
-  const candidates = (data.data || [])
-    .map((item) => {
-      const title = item.fromPageTitleEnc || item.fromPageTitle || item.title || fullQuery
-      const thumb = safeUrl(item.thumbURL || item.thumbnailUrl || item.middleURL || item.objURL || '')
-      const image = safeUrl(item.objURL || item.middleURL || item.hoverURL || thumb)
-      const page = safeUrl(item.fromURL || item.fromUrl || image || thumb)
-      return { title, thumb, image, page, score: scoreImageCandidate({ title, url: page, thumb }, query) }
-    })
-    .filter((item) => item.image || item.thumb)
-    .sort((a, b) => b.score - a.score)
-
+  let data = {}
+  try { data = JSON.parse(text || '{}') } catch (_error) { data = {} }
+  const candidates = sortImageCandidates((data.data || []).map((item) => {
+    const title = item.fromPageTitleEnc || item.fromPageTitle || item.title || fullQuery
+    const thumb = safeUrl(item.thumbURL || item.thumbnailUrl || item.middleURL || item.objURL || '')
+    const image = safeUrl(item.objURL || item.middleURL || item.hoverURL || thumb)
+    const page = safeUrl(item.fromURL || item.fromUrl || image || thumb)
+    return { title, thumb, image, page }
+  }), query)
   const best = candidates[0]
-  if (!best) throw new Error('没有找到可预览图片谱')
-  return {
-    imageUrl: best.image || best.thumb,
-    sourceUrl: best.page || best.image || best.thumb,
-    title: stripHtml(best.title || fullQuery).slice(0, 80),
+  if (!best) throw new Error('百度图片没有返回可预览图片谱')
+  return { imageUrl: best.image || best.thumb, sourceUrl: best.page || best.image || best.thumb, title: stripHtml(best.title || fullQuery).slice(0, 80) }
+}
+
+function extractBingImageCandidates(html = '', query = '') {
+  const rows = []
+  const decoded = decodeHtml(html)
+  const murlRe = /"murl"\s*:\s*"(https?:[^"{}]+?)"/gi
+  let match
+  while ((match = murlRe.exec(decoded)) && rows.length < 20) {
+    const image = safeUrl(match[1])
+    if (!image) continue
+    rows.push({ title: query || '吉他谱图片', thumb: image, image, page: image })
+  }
+  const mediaUrlRe = /murl&amp;quot;:&amp;quot;(https?:[^&]+?)&amp;quot;/gi
+  while ((match = mediaUrlRe.exec(html)) && rows.length < 30) {
+    const image = safeUrl(match[1])
+    if (!image) continue
+    rows.push({ title: query || '吉他谱图片', thumb: image, image, page: image })
+  }
+  return sortImageCandidates(rows, query)
+}
+
+async function findBingImage(searchQuery = '') {
+  const query = normalizeSearchQuery(searchQuery)
+  if (!query) throw new Error('缺少图片谱搜索词')
+  const fullQuery = /吉他谱|和弦谱|弹唱谱|六线谱/.test(query) ? query : `${query} 吉他谱 图片谱`
+  const url = `https://cn.bing.com/images/search?q=${encodeURIComponent(fullQuery)}&form=HDRSC2&first=1`
+  const { text } = await requestText(url)
+  const candidates = extractBingImageCandidates(text, fullQuery)
+  const best = candidates[0]
+  if (!best) throw new Error('Bing 图片没有返回可预览图片谱')
+  return { imageUrl: best.image || best.thumb, sourceUrl: best.page || best.image || best.thumb, title: stripHtml(best.title || fullQuery).slice(0, 80) }
+}
+
+async function findBestImage(searchQuery = '') {
+  try { return await findBaiduImage(searchQuery) } catch (baiduError) {
+    console.log('baidu image fallback to bing:', baiduError?.message || baiduError)
+    return findBingImage(searchQuery)
   }
 }
 
@@ -259,23 +292,23 @@ async function resolveImageFromResource(event = {}) {
 
   const resourceUrl = safeUrl(event.url || '')
   const searchQuery = inferSearchQuery(event)
-  if (!resourceUrl) return findBaiduImage(searchQuery)
+  if (!resourceUrl) return findBestImage(searchQuery)
 
   try {
     const parsed = new URL(resourceUrl)
-    const isBaiduSearch = parsed.hostname.includes('baidu.com') && (/\/s$|\/search\//.test(parsed.pathname) || parsed.hostname.includes('image.baidu.com'))
-    if (isBaiduSearch) return findBaiduImage(searchQuery)
+    const isSearch = parsed.hostname.includes('baidu.com') || parsed.hostname.includes('bing.com') || parsed.hostname.includes('image.baidu.com')
+    if (isSearch) return findBestImage(searchQuery)
   } catch (_error) {}
 
   try {
     const { text, contentType } = await requestText(resourceUrl)
     if (ALLOWED_IMAGE_TYPES.includes(contentType)) return { imageUrl: resourceUrl, sourceUrl: resourceUrl, title: event.title || '吉他谱图片' }
-    if (!HTML_TYPES.includes(contentType) && !contentType.includes('text')) return findBaiduImage(searchQuery)
+    if (!HTML_TYPES.includes(contentType) && !contentType.includes('text')) return findBestImage(searchQuery)
     const images = extractImageUrlsFromHtml(text, resourceUrl, searchQuery || event.title || '')
     if (images.length) return images[0]
-    return findBaiduImage(searchQuery || event.title || '')
+    return findBestImage(searchQuery || event.title || '')
   } catch (_error) {
-    return findBaiduImage(searchQuery || event.title || '')
+    return findBestImage(searchQuery || event.title || '')
   }
 }
 
@@ -288,16 +321,7 @@ async function uploadPreviewImage({ imageUrl, sourceUrl, title }) {
   const tempResult = await cloud.getTempFileURL({ fileList: [uploaded.fileID] })
   const tempURL = tempResult.fileList?.[0]?.tempFileURL || ''
   if (!tempURL) throw new Error('生成预览地址失败')
-  return {
-    title: String(title || '吉他谱图片').slice(0, 80),
-    fileID: uploaded.fileID,
-    tempFileURL: tempURL,
-    contentType,
-    size: buffer.length,
-    sourceUrl: sourceUrl || imageUrl,
-    imageUrl,
-    notice: '图片仅用于小程序内临时预览，请保留原始来源信息。',
-  }
+  return { title: String(title || '吉他谱图片').slice(0, 80), fileID: uploaded.fileID, tempFileURL: tempURL, contentType, size: buffer.length, sourceUrl: sourceUrl || imageUrl, imageUrl, notice: '图片仅用于小程序内临时预览，请保留原始来源信息。' }
 }
 
 exports.main = async (event = {}) => {
