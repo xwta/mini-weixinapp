@@ -88,7 +88,7 @@
           </view>
         </view>
         <view class="button-col">
-          <view class="reference-btn" @tap.stop="openReferenceResource(ref)">{{ openingUrl === getResourceKey(ref) ? '打开中' : '打开' }}</view>
+          <view class="reference-btn" @tap.stop="openReferenceResource(ref)">{{ openingUrl === getResourceKey(ref) ? '处理中' : '打开' }}</view>
         </view>
       </view>
     </view>
@@ -153,10 +153,10 @@ const viewOnlyRefs = computed(() => allReferences.value.filter((ref) => !canPrev
 const primaryCandidate = computed(() => props.candidates[0])
 
 const noticeText = computed(() => {
-  if (importableRefs.value.length && previewableRefs.value.length) return '图片谱用于查看原谱；文本谱可转成应用内谱面；参考结果可打开继续查找。'
+  if (importableRefs.value.length && previewableRefs.value.length) return '图片谱用于查看原谱；文本谱可转成应用内谱面；参考结果可复制链接或尝试打开。'
   if (previewableRefs.value.length) return '当前结果以图片谱为主，建议先预览；需要应用内练习时可使用 AI 编配。'
   if (importableRefs.value.length) return '当前结果包含可转谱资源，点击“转谱”生成应用内曲谱详情。'
-  return '当前展示的是曲谱搜索入口，可打开继续查找；也可以使用 AI 编配生成练习版。'
+  return '当前展示的是曲谱搜索入口，可复制链接继续查找；也可以使用 AI 编配生成练习版。'
 })
 
 function getConfidenceText(candidate: WebSongCandidate) {
@@ -206,6 +206,24 @@ function buildSearchQuery(ref: WebSearchReference) {
   return parts || ref.title || candidate?.title || ''
 }
 
+function copyReferenceLink(url: string) {
+  uni.setClipboardData({
+    data: url,
+    success: () => uni.showToast({ title: '链接已复制', icon: 'none' }),
+  })
+}
+
+function tryOpenInWebview(ref: WebSearchReference, url: string) {
+  const encoded = encodeURIComponent(url)
+  uni.navigateTo({
+    url: `/pages/resource-webview/index?url=${encoded}&title=${encodeURIComponent(ref.title || '曲谱资源')}`,
+    fail: () => copyReferenceLink(url),
+    complete: () => {
+      setTimeout(() => { openingUrl.value = '' }, 500)
+    },
+  })
+}
+
 function openReferenceResource(ref: WebSearchReference) {
   const url = ref.url || ref.image_url || ref.thumbnail_url || ''
   if (!url) {
@@ -213,18 +231,18 @@ function openReferenceResource(ref: WebSearchReference) {
     return
   }
   openingUrl.value = getResourceKey(ref)
-  const encoded = encodeURIComponent(url)
-  uni.navigateTo({
-    url: `/pages/resource-webview/index?url=${encoded}&title=${encodeURIComponent(ref.title || '曲谱资源')}`,
+  uni.showActionSheet({
+    itemList: ['复制链接', '尝试打开网页'],
+    success: (res) => {
+      if (res.tapIndex === 0) {
+        copyReferenceLink(url)
+        openingUrl.value = ''
+        return
+      }
+      tryOpenInWebview(ref, url)
+    },
     fail: () => {
       openingUrl.value = ''
-      uni.setClipboardData({
-        data: url,
-        success: () => uni.showToast({ title: '链接已复制', icon: 'none' }),
-      })
-    },
-    success: () => {
-      setTimeout(() => { openingUrl.value = '' }, 500)
     },
   })
 }
