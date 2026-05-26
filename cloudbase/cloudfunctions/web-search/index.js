@@ -2,7 +2,7 @@ const cloud = require('wx-server-sdk')
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 
-const DEFAULT_TIMEOUT_MS = 8000
+const DEFAULT_TIMEOUT_MS = 9000
 const MAX_RESULTS = 8
 const MAX_TAB_REFERENCES = 12
 const CACHE_TTL_MS = 3 * 60 * 60 * 1000
@@ -96,10 +96,6 @@ function normalizeKeyword(keyword = '') {
     .trim()
 }
 
-function compactText(text = '') {
-  return normalizeKeyword(text).replace(/\s+/g, '').toLowerCase()
-}
-
 function uniqueStrings(items = []) {
   return Array.from(new Set(items.map((item) => String(item || '').trim()).filter(Boolean)))
 }
@@ -191,7 +187,7 @@ function requestRaw(url, options = {}, redirectCount = 0) {
         res.setEncoding('utf8')
         res.on('data', (chunk) => {
           raw += chunk
-          if (raw.length > 1500000) req.destroy(new Error('response too large'))
+          if (raw.length > 1800000) req.destroy(new Error('response too large'))
         })
         res.on('end', () => {
           if (res.statusCode < 200 || res.statusCode >= 300) {
@@ -220,6 +216,7 @@ function headers(extra = {}) {
     'User-Agent': USER_AGENT,
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Cache-Control': 'no-cache',
     ...extra,
   }
 }
@@ -274,15 +271,17 @@ function scoreTabReference(reference = {}, keyword = '') {
   return score
 }
 
-function ref(title, url, snippet, provider, query) {
+function makeRef(title, url, snippet, provider, query, extra = {}) {
   const item = {
     title: stripHtml(title).slice(0, 120),
     url: safeUrl(url).slice(0, 500),
     snippet: stripHtml(snippet).slice(0, 200),
     category: 'tab_reference',
     provider,
+    ...extra,
   }
-  item.tab_score = scoreTabReference(item, query)
+  item.tab_score = scoreTabReference(item, query) + Number(extra.scoreBoost || 0)
+  delete item.scoreBoost
   return item
 }
 
@@ -308,6 +307,67 @@ function compactReferences(references = [], max = MAX_TAB_REFERENCES) {
     .slice(0, max)
 }
 
+function parseBaiduDataTools(block = '', query = '', provider = 'baidu') {
+  const refs = []
+  const regex = /data-tools=(['"])([\s\S]*?)\1/gi
+  let match
+  while ((match = regex.exec(block))) {
+    const raw = decodeHtml(match[2])
+    try {
+      const data = JSON.parse(raw)
+      const title = data.title || data.dispTitle || data.itemTitle || ''
+      const url = data.url || data.linkUrl || data.mu || data.srcid || ''
+      if (title && url) refs.push(makeRef(title, url, '', provider, query, { scoreBoost: 10 }))
+    } catch (_error) {}
+  }
+  return refs
+}
+
+function extractBaiduMu(block = '') {
+  const patterns = [
+    /\bmu=(['"])(.*?)\1/i,
+    /\bdata-url=(['"])(.*?)\1/i,
+    /\burl=(['"])(https?:\/\/.*?)\1/i,
+  ]
+  for (const pattern of patterns) {
+    const match = block.match(pattern)
+    if (match?.[2]) return safeUrl(match[2])
+  }
+  return ''
+}
+
+function parseBaidu(html = '', query = '', provider = 'baidu') {
+  const results = []
+  const blocks = html.split(/<div[^>]+(?:tpl|class|id)=["'][^"']*(?:result|c-container|result-op|xpath-log)[^"']*["'][^>]*>/i).slice(1)
+
+  for (const block of blocks) {
+    results.push(...parseBaiduDataTools(block, query, provider))
+
+    const titleMatch = block.match(/<h3[^>]*>[\s\S]*?<a[^>]+href=(['"])(.*?)\1[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h3>/i)
+      || block.match(/<a[^>]+href=(['"])(.*?)\1[^>]*>([\s\S]*?)<\/a>/i)
+    if (!titleMatch) continue
+
+    const href = safeUrl(titleMatch[2])
+    const directUrl = extractBaiduMu(block) || href
+    const title = titleMatch[3]
+    const snippetMatch = block.match(/<span[^>]+class=(['"])[^'"]*(?:content-right|c-abstract|c-span-last|c-color-text|c-line-clamp)[^'"]*\1[^>]*>([\s\S]*?)<\/span>/i)
+      || block.match(/<div[^>]+class=(['"])[^'"]*(?:c-abstract|content|c-line-clamp|c-result-content)[^'"]*\1[^>]*>([\s\S]*?)<\/div>/i)
+      || block.match(/<p[^>]*>([\s\S]*?)<\/p>/i)
+    const snippet = snippetMatch?.[2] || snippetMatch?.[1] || ''
+    results.push(makeRef(title, directUrl, snippet, provider, query, { scoreBoost: provider === 'baidu_mobile' ? 12 : 16 }))
+  }
+
+  if (!results.length) {
+    const h3Regex = /<h3[^>]*>[\s\S]*?<a[^>]+href=(['"])(.*?)\1[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h3>/gi
+    let match
+    while ((match = h3Regex.exec(html))) {
+      results.push(makeRef(match[3], match[2], '', provider, query, { scoreBoost: 8 }))
+    }
+  }
+
+  return compactReferences(results, MAX_TAB_REFERENCES)
+}
+
 function parseDuckDuckGo(html = '', query = '') {
   const results = []
   const blocks = html.split(/<div class="result results_links[^>]*>|<div class="web-result[^>]*>|<tr class="result[^>]*>/i).slice(1)
@@ -319,7 +379,7 @@ function parseDuckDuckGo(html = '', query = '') {
     const snippetMatch = block.match(/<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i)
       || block.match(/<div[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i)
       || block.match(/<td[^>]+class="result-snippet"[^>]*>([\s\S]*?)<\/td>/i)
-    results.push(ref(titleMatch[2], titleMatch[1], snippetMatch?.[1] || '', 'duckduckgo', query))
+    results.push(makeRef(titleMatch[2], titleMatch[1], snippetMatch?.[1] || '', 'duckduckgo', query))
   }
   return compactReferences(results, MAX_TAB_REFERENCES)
 }
@@ -331,21 +391,7 @@ function parseBing(html = '', query = '') {
     const titleMatch = block.match(/<h2[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>\s*<\/h2>/i)
     if (!titleMatch) continue
     const snippetMatch = block.match(/<p[^>]*>([\s\S]*?)<\/p>/i)
-    results.push(ref(titleMatch[2], titleMatch[1], snippetMatch?.[1] || '', 'bing', query))
-  }
-  return compactReferences(results, MAX_TAB_REFERENCES)
-}
-
-function parseBaidu(html = '', query = '') {
-  const results = []
-  const blocks = html.split(/<div[^>]+class="[^"]*(?:result|c-container)[^"]*"[^>]*>/i).slice(1)
-  for (const block of blocks) {
-    const titleMatch = block.match(/<h3[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h3>/i)
-      || block.match(/<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i)
-    if (!titleMatch) continue
-    const snippetMatch = block.match(/<span[^>]+class="[^"]*(?:content-right|c-abstract|c-span-last)[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
-      || block.match(/<div[^>]+class="[^"]*(?:c-abstract|content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i)
-    results.push(ref(titleMatch[2], titleMatch[1], snippetMatch?.[1] || '', 'baidu', query))
+    results.push(makeRef(titleMatch[2], titleMatch[1], snippetMatch?.[1] || '', 'bing', query))
   }
   return compactReferences(results, MAX_TAB_REFERENCES)
 }
@@ -357,9 +403,45 @@ function parseSogou(html = '', query = '') {
     const titleMatch = block.match(/<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i)
     if (!titleMatch) continue
     const snippetMatch = block.match(/<p[^>]*class="[^"]*(?:str_info|txt-info)[^"]*"[^>]*>([\s\S]*?)<\/p>/i)
-    results.push(ref(titleMatch[2], titleMatch[1], snippetMatch?.[1] || '', 'sogou', query))
+    results.push(makeRef(titleMatch[2], titleMatch[1], snippetMatch?.[1] || '', 'sogou', query))
   }
   return compactReferences(results, MAX_TAB_REFERENCES)
+}
+
+async function searchBaidu(query) {
+  const rows = []
+  const encoded = encodeURIComponent(query)
+  const jobs = [
+    {
+      provider: 'baidu',
+      url: `https://www.baidu.com/s?wd=${encoded}&rn=10&ie=utf-8`,
+      referer: 'https://www.baidu.com/',
+      mobile: false,
+    },
+    {
+      provider: 'baidu_mobile',
+      url: `https://m.baidu.com/s?word=${encoded}&rn=10&ie=utf-8`,
+      referer: 'https://m.baidu.com/',
+      mobile: true,
+    },
+  ]
+
+  for (const job of jobs) {
+    try {
+      const html = await requestRaw(job.url, {
+        headers: headers({
+          Referer: job.referer,
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        }),
+      })
+      rows.push(...parseBaidu(html, query, job.provider))
+      if (rows.length >= 6) break
+    } catch (error) {
+      console.log(`${job.provider} failed`, query, error?.message || error)
+    }
+  }
+
+  return compactReferences(rows, MAX_TAB_REFERENCES)
 }
 
 async function searchDuckDuckGo(query) {
@@ -387,17 +469,6 @@ async function searchBing(query) {
     return parseBing(html, query)
   } catch (error) {
     console.log('bing failed', query, error?.message || error)
-    return []
-  }
-}
-
-async function searchBaidu(query) {
-  try {
-    const url = `https://www.baidu.com/s?wd=${encodeURIComponent(query)}&rn=10`
-    const html = await requestRaw(url, { headers: headers({ Referer: 'https://www.baidu.com/' }) })
-    return parseBaidu(html, query)
-  } catch (error) {
-    console.log('baidu failed', query, error?.message || error)
     return []
   }
 }
@@ -433,7 +504,7 @@ async function searchTavily(query) {
       },
       body: payload,
     })
-    return compactReferences((data.results || []).map((item) => ref(item.title, item.url, item.content || item.snippet, 'tavily', query)))
+    return compactReferences((data.results || []).map((item) => makeRef(item.title, item.url, item.content || item.snippet, 'tavily', query)))
   } catch (error) {
     console.log('tavily failed', query, error?.message || error)
     return []
@@ -451,7 +522,7 @@ async function searchBrave(query) {
         'X-Subscription-Token': apiKey,
       },
     })
-    return compactReferences((data.web?.results || []).map((item) => ref(item.title, item.url, item.description, 'brave', query)))
+    return compactReferences((data.web?.results || []).map((item) => makeRef(item.title, item.url, item.description, 'brave', query)))
   } catch (error) {
     console.log('brave failed', query, error?.message || error)
     return []
@@ -459,28 +530,39 @@ async function searchBrave(query) {
 }
 
 async function searchOneQuery(query, provider) {
-  const tasks = []
-  if (provider === 'auto' || provider === 'open' || provider === 'duckduckgo') tasks.push(searchDuckDuckGo(query))
-  if (provider === 'auto' || provider === 'open' || provider === 'bing') tasks.push(searchBing(query))
-  if (provider === 'auto' || provider === 'open' || provider === 'baidu') tasks.push(searchBaidu(query))
-  if (provider === 'auto' || provider === 'open' || provider === 'sogou') tasks.push(searchSogou(query))
-  if (provider === 'auto' || provider === 'tavily') tasks.push(searchTavily(query))
-  if (provider === 'auto' || provider === 'brave') tasks.push(searchBrave(query))
-  const settled = await Promise.allSettled(tasks)
-  return settled.flatMap((item) => item.status === 'fulfilled' ? item.value : [])
+  if (provider === 'baidu' || provider === 'baidu_first') return searchBaidu(query)
+  if (provider === 'bing') return searchBing(query)
+  if (provider === 'sogou') return searchSogou(query)
+  if (provider === 'duckduckgo') return searchDuckDuckGo(query)
+  if (provider === 'tavily') return searchTavily(query)
+  if (provider === 'brave') return searchBrave(query)
+
+  const baiduRows = await searchBaidu(query)
+  if (baiduRows.length >= 5) return baiduRows
+
+  const supplementTasks = [searchBing(query), searchSogou(query), searchDuckDuckGo(query), searchTavily(query), searchBrave(query)]
+  const settled = await Promise.allSettled(supplementTasks)
+  const supplementRows = settled.flatMap((item) => item.status === 'fulfilled' ? item.value : [])
+  return compactReferences([...baiduRows, ...supplementRows], MAX_TAB_REFERENCES)
 }
 
-async function searchTabReferences(queryVariants = [], provider = 'auto') {
+async function searchTabReferences(queryVariants = [], provider = 'baidu_first') {
   const collected = []
   const debug = []
-  for (const query of queryVariants.slice(0, 6)) {
-    const before = collected.length
+  for (const query of queryVariants.slice(0, 7)) {
     const rows = await searchOneQuery(query, provider)
     collected.push(...rows)
     const compacted = compactReferences(collected, MAX_TAB_REFERENCES)
     collected.length = 0
     collected.push(...compacted)
-    debug.push({ query, found: collected.length - before > 0 ? collected.length - before : rows.length })
+    debug.push({
+      query,
+      provider,
+      found: rows.length,
+      total: collected.length,
+      topProvider: collected[0]?.provider || '',
+      topTitle: collected[0]?.title || '',
+    })
     if (collected.length >= MAX_TAB_REFERENCES) break
   }
   const cleanRefs = compactReferences(collected, MAX_TAB_REFERENCES)
@@ -502,10 +584,11 @@ function extractArrangementHints(references = []) {
 
 function buildFallbackTabReferences(keyword = '') {
   const clean = normalizeKeyword(keyword) || keyword
+  const baiduQuery = `${clean} 吉他谱 和弦谱 弹唱谱`
   const queries = [
-    { provider: 'bing', title: `Bing搜索：${clean} 吉他谱`, query: `${clean} 吉他谱 和弦谱 弹唱谱` },
-    { provider: 'baidu', title: `百度搜索：${clean} 吉他谱`, query: `${clean} 吉他谱 和弦谱 弹唱谱` },
-    { provider: 'duckduckgo', title: `DuckDuckGo搜索：${clean} guitar chords`, query: `${clean} guitar chords tab` },
+    { provider: 'baidu', title: `百度搜索：${clean} 吉他谱`, query: baiduQuery },
+    { provider: 'baidu-mobile', title: `百度移动搜索：${clean} 吉他谱`, query: baiduQuery },
+    { provider: 'bing', title: `Bing搜索：${clean} 吉他谱`, query: baiduQuery },
     { provider: 'site-jita5', title: `站内搜索：${clean} 吉他谱`, query: `${clean} 吉他谱 site:jita5.com` },
     { provider: 'site-jitabang', title: `站内搜索：${clean} 弹唱谱`, query: `${clean} 吉他谱 site:jitabang.com` },
     { provider: 'site-tan8', title: `站内搜索：${clean} 和弦谱`, query: `${clean} 吉他谱 site:tan8.com` },
@@ -514,16 +597,18 @@ function buildFallbackTabReferences(keyword = '') {
   return compactReferences(queries.map((item, index) => {
     const url = item.provider === 'baidu'
       ? `https://www.baidu.com/s?wd=${encodeURIComponent(item.query)}`
-      : item.provider === 'bing'
-        ? `https://www.bing.com/search?q=${encodeURIComponent(item.query)}`
-        : `https://duckduckgo.com/?q=${encodeURIComponent(item.query)}`
+      : item.provider === 'baidu-mobile'
+        ? `https://m.baidu.com/s?word=${encodeURIComponent(item.query)}`
+        : item.provider === 'bing'
+          ? `https://www.bing.com/search?q=${encodeURIComponent(item.query)}`
+          : `https://www.baidu.com/s?wd=${encodeURIComponent(item.query)}`
     return {
       title: item.title,
       url,
       snippet: `用于继续检索《${clean}》的吉他谱、和弦谱、弹唱谱、变调夹与调式线索，不抓取完整曲谱。`,
       category: 'tab_reference',
       provider: item.provider,
-      tab_score: 45 - index,
+      tab_score: 48 - index,
     }
   }), MAX_TAB_REFERENCES)
 }
@@ -537,11 +622,11 @@ function buildCandidate(keyword, tabReferences, provider, debug = []) {
     artist,
     album: '',
     duration: 0,
-    confidence: tabReferences.length ? 0.86 : 0.58,
-    source: tabReferences.length ? 'cloud_web_search' : 'cloud_web_search_fallback',
+    confidence: tabReferences.length ? 0.88 : 0.6,
+    source: tabReferences.length ? 'baidu_first_cloud_search' : 'baidu_first_fallback',
     summary: tabReferences.length
-      ? `云函数联网搜索到 ${refs.length} 条吉他谱/和弦谱线索。`
-      : '云函数联网搜索未稳定拿到结果，已提供可继续检索的搜索入口。',
+      ? `云函数按百度搜索优先，找到 ${refs.length} 条吉他谱/和弦谱线索。`
+      : '百度优先搜索未稳定拿到结果，已提供可直接打开的百度搜索入口。',
     references: refs.slice(0, MAX_RESULTS),
     tabReferences: refs,
     arrangementHints: extractArrangementHints(refs),
@@ -553,7 +638,7 @@ function buildCandidate(keyword, tabReferences, provider, debug = []) {
 exports.main = async (event = {}) => {
   const action = event.action || 'tabLookup'
   const keyword = String(event.keyword || event.query || '').trim()
-  const provider = event.provider || process.env.WEB_SEARCH_PROVIDER || 'auto'
+  const provider = event.provider || process.env.WEB_SEARCH_PROVIDER || 'baidu_first'
 
   if (!['songLookup', 'tabLookup'].includes(action)) return jsonResponse(400, `Unknown action: ${action}`)
   if (!keyword) return jsonResponse(400, '请输入要搜索的歌曲关键词')
