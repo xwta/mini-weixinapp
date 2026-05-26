@@ -68,6 +68,7 @@
 import { computed, ref } from 'vue'
 import { previewResourceImage } from '@/api/resourcePreview'
 import { importResourceTab } from '@/api/resourceTabImport'
+import { saveRecentImport } from '@/utils/recent'
 import type { ResourcePreviewResult } from '@/api/resourcePreview'
 import type { WebSearchReference, WebSongCandidate } from '@/api/webSearch'
 
@@ -186,6 +187,12 @@ async function importTextResource(ref: WebSearchReference) {
       url: ref.url,
       search_query: buildSearchQuery(ref),
     })
+    saveRecentImport({
+      songId: result.songId,
+      title: result.title || candidate?.title || ref.title,
+      artist: result.artist_name || candidate?.artist || '',
+      source: result.sourceUrl || ref.source_site || ref.provider || '',
+    })
     uni.hideLoading()
     uni.showToast({ title: '曲谱已导入', icon: 'success' })
     setTimeout(() => {
@@ -245,17 +252,7 @@ function previewByTempUrl(tempFileURL: string, sourceUrl = '') {
 </script>
 
 <style scoped>
-.results-card {
-  width: 686rpx;
-  margin: 0 32rpx 24rpx;
-  padding: 24rpx;
-  box-sizing: border-box;
-  border-radius: 28rpx;
-  background: #FFFFFF;
-  border: 1rpx solid #E8EFEA;
-  box-shadow: 0 12rpx 34rpx rgba(18, 52, 36, 0.06);
-  animation: cardIn .22s ease-out;
-}
+.results-card { width: 686rpx; margin: 0 32rpx 24rpx; padding: 24rpx; box-sizing: border-box; border-radius: 28rpx; background: #FFFFFF; border: 1rpx solid #E8EFEA; box-shadow: 0 12rpx 34rpx rgba(18, 52, 36, 0.06); animation: cardIn .22s ease-out; }
 .card-head { display: flex; align-items: center; }
 .icon-box { width: 72rpx; height: 72rpx; margin-right: 18rpx; border-radius: 24rpx; background: #EAF8F0; color: #0BA45A; font-size: 36rpx; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .head-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
