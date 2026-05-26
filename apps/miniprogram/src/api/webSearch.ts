@@ -1,6 +1,7 @@
 import { request } from './provider'
 
 export type WebSearchResultType = 'web' | 'image' | 'text' | 'fallback'
+export type WebSearchActionHint = 'preview' | 'import' | 'view_only'
 
 export interface WebSearchReference {
   title: string
@@ -13,6 +14,10 @@ export interface WebSearchReference {
   thumbnail_url?: string
   image_url?: string
   source_site?: string
+  importable?: boolean
+  previewable?: boolean
+  action_hint?: WebSearchActionHint | string
+  action_label?: string
 }
 
 export interface WebArrangementHints {
@@ -22,6 +27,7 @@ export interface WebArrangementHints {
   tabReferenceCount?: number
   imageReferenceCount?: number
   textReferenceCount?: number
+  viewOnlyCount?: number
 }
 
 export interface WebSongCandidate {
