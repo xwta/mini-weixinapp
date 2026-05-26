@@ -29,7 +29,7 @@
             <text class="ref-score">{{ Math.round(ref.tab_score || 0) }}分</text>
           </view>
         </view>
-        <view class="open-btn">{{ openingUrl === getResourceKey(ref) ? '解析中' : '打开' }}</view>
+        <view class="open-btn">{{ openingUrl === getResourceKey(ref) ? '打开中' : '打开' }}</view>
       </view>
     </view>
 
@@ -53,7 +53,7 @@
       </view>
     </view>
 
-    <view class="notice">点“打开”会解析搜索入口/网页/图片，尽量在小程序内直接预览图片谱。AI 生成只是兜底。</view>
+    <view class="notice">点“打开”会先把图片谱下载成小程序本地临时文件，再直接预览。AI 生成只是兜底。</view>
 
     <view class="actions">
       <view class="ghost-btn" @tap="emit('searchAgain')">换个关键词</view>
@@ -65,6 +65,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { previewResourceImage } from '@/api/resourcePreview'
+import type { ResourcePreviewResult } from '@/api/resourcePreview'
 import type { WebSearchReference, WebSongCandidate } from '@/api/webSearch'
 
 const props = withDefaults(defineProps<{
@@ -142,7 +143,7 @@ async function openResource(ref: WebSearchReference) {
   }
   openingUrl.value = key
   try {
-    uni.showLoading({ title: '解析资源' })
+    uni.showLoading({ title: '打开图片谱' })
     const result = await previewResourceImage({
       title: ref.title,
       url: ref.url,
@@ -150,27 +151,67 @@ async function openResource(ref: WebSearchReference) {
       thumbnail_url: ref.thumbnail_url,
       search_query: buildSearchQuery(ref),
     })
-    uni.hideLoading()
-    uni.previewImage({
-      urls: [result.tempFileURL],
-      current: result.tempFileURL,
-      fail: () => copyResourceUrl(result.sourceUrl || ref.url || ref.image_url || ref.thumbnail_url || ''),
-    })
+    await previewFromCloudResult(result, ref)
   } catch (error: any) {
     uni.hideLoading()
-    uni.showToast({ title: error?.message || '资源解析失败', icon: 'none' })
-    copyResourceUrl(ref.url || ref.image_url || ref.thumbnail_url || '')
+    const message = error?.message || '图片谱打开失败'
+    uni.showModal({
+      title: '图片谱打开失败',
+      content: `${message}\n\n已为你复制原始资源链接，可在浏览器或百度中打开。`,
+      showCancel: false,
+    })
+    copyResourceUrl(ref.url || ref.image_url || ref.thumbnail_url || '', false)
   } finally {
     openingUrl.value = ''
   }
 }
 
-function copyResourceUrl(url: string) {
+async function previewFromCloudResult(result: ResourcePreviewResult, ref: WebSearchReference) {
+  const sourceUrl = result.sourceUrl || ref.url || ref.image_url || ref.thumbnail_url || ''
+
+  // #ifdef MP-WEIXIN
+  if (result.fileID && typeof wx !== 'undefined' && wx.cloud?.downloadFile) {
+    try {
+      const downloaded = await wx.cloud.downloadFile({ fileID: result.fileID })
+      const tempFilePath = downloaded?.tempFilePath
+      if (tempFilePath) {
+        uni.hideLoading()
+        uni.previewImage({
+          urls: [tempFilePath],
+          current: tempFilePath,
+          fail: () => previewByTempUrl(result.tempFileURL, sourceUrl),
+        })
+        return
+      }
+    } catch (_error) {
+      // 继续使用 tempFileURL 兜底
+    }
+  }
+  // #endif
+
+  previewByTempUrl(result.tempFileURL, sourceUrl)
+}
+
+function previewByTempUrl(tempFileURL: string, sourceUrl = '') {
+  if (!tempFileURL) {
+    uni.hideLoading()
+    copyResourceUrl(sourceUrl, true)
+    return
+  }
+  uni.hideLoading()
+  uni.previewImage({
+    urls: [tempFileURL],
+    current: tempFileURL,
+    fail: () => copyResourceUrl(sourceUrl || tempFileURL, true),
+  })
+}
+
+function copyResourceUrl(url: string, showToast = true) {
   if (!url) return
   uni.setClipboardData({
     data: url,
     success: () => {
-      uni.showToast({ title: '资源链接已复制', icon: 'success' })
+      if (showToast) uni.showToast({ title: '资源链接已复制', icon: 'success' })
     },
     fail: () => {
       uni.showModal({ title: '资源链接', content: url, showCancel: false })
