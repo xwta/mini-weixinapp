@@ -1,5 +1,7 @@
 import { request } from './provider'
 
+export type WebSearchResultType = 'web' | 'image' | 'text' | 'fallback'
+
 export interface WebSearchReference {
   title: string
   url: string
@@ -7,6 +9,10 @@ export interface WebSearchReference {
   category?: string
   provider?: string
   tab_score?: number
+  result_type?: WebSearchResultType | string
+  thumbnail_url?: string
+  image_url?: string
+  source_site?: string
 }
 
 export interface WebArrangementHints {
@@ -14,6 +20,8 @@ export interface WebArrangementHints {
   possibleCapos?: string[]
   possibleChords?: string[]
   tabReferenceCount?: number
+  imageReferenceCount?: number
+  textReferenceCount?: number
 }
 
 export interface WebSongCandidate {
