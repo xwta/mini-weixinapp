@@ -101,7 +101,7 @@ import AppBottomTab from '@/components/home/AppBottomTab.vue'
 import { loginWithWechatProfile } from '@/api/auth'
 import { createChords, createSongwriting, createWebChords } from '@/api/ai'
 import { searchSongs } from '@/api/songs'
-import { searchWebSong } from '@/api/webSearch'
+import { searchWebSong, searchWebTabs } from '@/api/webSearch'
 import { useAuthStore } from '@/stores/auth'
 import type { AiSongResult, Song } from '@/types'
 import type { WebSongCandidate } from '@/api/webSearch'
@@ -159,7 +159,7 @@ function selectMode(value: string) {
   activeMode.value = value as ModeValue
   const prompts: Record<ModeValue, string> = {
     song: '比如：写一首毕业民谣，C调，新手能弹',
-    search: '比如：晴天 / 成都 / 民谣 / 周杰伦',
+    search: '比如：晴天吉他谱 / 成都弹唱谱 / 海阔天空和弦谱',
     chord: '粘贴歌词，我来自动配和弦',
     practice: '输入歌名，我帮你找谱开始练',
   }
@@ -174,7 +174,7 @@ function fillPrompt(prompt: string) {
 }
 
 function focusInput() {
-  placeholder.value = '换个歌名、歌手或风格再搜一次'
+  placeholder.value = '换个歌名、歌手或“歌名+吉他谱”再搜一次'
   inputFocus.value = true
 }
 
@@ -237,6 +237,10 @@ function compactSearchText(text = '') {
   return normalizeSearchText(text).replace(/\s+/g, '')
 }
 
+function isTabSearchIntent(text = '') {
+  return /吉他谱|曲谱|谱子|弹唱谱|和弦谱|六线谱|gtp|guitar\s*tab|guitar\s*chords?|\bchords?\b|\btabs?\b/i.test(text)
+}
+
 function getSongSearchFields(song: Song | any) {
   return [
     song.title,
@@ -277,6 +281,7 @@ function getReliableLocalSongs(items: any[] = [], keywordText: string) {
 
 function detectRoute(text: string): ModeValue {
   if (activeMode.value !== 'song') return activeMode.value
+  if (isTabSearchIntent(text)) return 'search'
   if (/搜|找|曲谱|吉他谱|谱子/.test(text)) return 'search'
   if (/配和弦|和弦|歌词/.test(text) && text.length > 20) return 'chord'
   if (/练习|开始练|滚谱/.test(text)) return 'practice'
@@ -330,6 +335,25 @@ async function lookupWebCandidate(text: string) {
   webCandidate.value = null
   webResultLabel.value = web.tabSearchEnabled ? '网络搜索结果 · 含谱线索' : '网络搜索结果'
   await streamAiMessage(`我找到了 ${candidates.length} 个可能结果。先选择歌曲，确认后再生成 AI 简化弹唱版。`)
+  nextTick(() => {
+    scrollTop.value += 560
+  })
+}
+
+async function lookupTabCandidate(text: string) {
+  await streamAiMessage('我先直接搜索网络吉他谱/和弦谱线索，不走本地曲库。')
+  const web = await searchWebTabs(text)
+  const candidates = web.candidates || []
+
+  if (!candidates.length) {
+    await streamAiMessage('暂时没有找到可用的吉他谱搜索线索。你可以试试“歌名 + 歌手 + 吉他谱”。')
+    return
+  }
+
+  webCandidates.value = candidates
+  webCandidate.value = null
+  webResultLabel.value = '网络吉他谱搜索线索'
+  await streamAiMessage(`已找到 ${candidates[0]?.tabReferences?.length || candidates.length} 条谱源线索。先选择确认，再生成 AI 简化弹唱版。`)
   nextTick(() => {
     scrollTop.value += 560
   })
@@ -398,6 +422,11 @@ async function sendMessage() {
     const route = detectRoute(text)
 
     if (route === 'search' || route === 'practice') {
+      if (isTabSearchIntent(text)) {
+        await lookupTabCandidate(text)
+        return
+      }
+
       const result = await searchSongs({ keyword: text, page_size: 8 })
       const reliableItems = getReliableLocalSongs(result.items, text)
       if (!reliableItems.length) {
