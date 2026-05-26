@@ -43,6 +43,10 @@ export interface WebSongCandidate {
   arrangementHints?: WebArrangementHints
 }
 
+export interface WebSongSearchOptions {
+  forceRefresh?: boolean
+}
+
 export interface WebSongSearchResult {
   query: string
   queryVariants?: string[]
@@ -52,20 +56,23 @@ export interface WebSongSearchResult {
   canGenerate: boolean
   notice?: string
   provider?: string
+  cacheVersion?: string
 }
 
-export async function searchWebSong(keyword: string) {
+function buildSearchPayload(keyword: string, options: WebSongSearchOptions = {}) {
+  return {
+    action: 'tabLookup',
+    keyword,
+    force_refresh: Boolean(options.forceRefresh),
+  }
+}
+
+export async function searchWebSong(keyword: string, options: WebSongSearchOptions = {}) {
   // 谱灵定位是“搜吉他谱工具”，用户输入歌名即可。
   // 即使用户没有显式输入“吉他谱/和弦谱/弹唱谱”，也默认走 tabLookup。
-  return request<WebSongSearchResult>('web-search', {
-    action: 'tabLookup',
-    keyword,
-  })
+  return request<WebSongSearchResult>('web-search', buildSearchPayload(keyword, options))
 }
 
-export async function searchWebTabs(keyword: string) {
-  return request<WebSongSearchResult>('web-search', {
-    action: 'tabLookup',
-    keyword,
-  })
+export async function searchWebTabs(keyword: string, options: WebSongSearchOptions = {}) {
+  return request<WebSongSearchResult>('web-search', buildSearchPayload(keyword, options))
 }
