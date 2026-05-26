@@ -1,9 +1,9 @@
 <template>
-  <view class="nav" :style="{ paddingTop: statusBarHeight + 'px' }">
+  <view class="nav" :style="{ paddingTop: navTop + 'px' }">
     <view class="nav-inner">
       <view v-if="showBack" class="back" @tap="goBack">←</view>
       <view v-else class="back-placeholder" />
-      <view>
+      <view class="title-wrap">
         <view class="title">{{ title }}</view>
         <view v-if="subtitle" class="subtitle">{{ subtitle }}</view>
       </view>
@@ -22,16 +22,27 @@ withDefaults(defineProps<{ title: string; subtitle?: string; showBack?: boolean 
   showBack: false,
 })
 
-const statusBarHeight = ref(24)
-const systemInfo = uni.getSystemInfoSync()
-statusBarHeight.value = systemInfo.statusBarHeight || 24
+const navTop = ref(56)
+
+try {
+  const systemInfo = uni.getSystemInfoSync()
+  const menuButton = uni.getMenuButtonBoundingClientRect?.()
+  const statusBarHeight = systemInfo.statusBarHeight || 24
+  if (menuButton?.bottom) {
+    navTop.value = menuButton.bottom + 10
+  } else {
+    navTop.value = statusBarHeight + 54
+  }
+} catch (_error) {
+  navTop.value = 80
+}
 
 function goBack() {
   const pages = getCurrentPages()
   if (pages.length > 1) {
     uni.navigateBack()
   } else {
-    uni.switchTab({ url: '/pages/home/index' })
+    uni.reLaunch({ url: '/pages/chat/index' })
   }
 }
 </script>
@@ -47,6 +58,7 @@ function goBack() {
   display: flex;
   align-items: center;
   gap: 20rpx;
+  box-sizing: border-box;
 }
 
 .back {
@@ -60,17 +72,26 @@ function goBack() {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .back-placeholder {
   width: 58rpx;
   height: 58rpx;
+  flex-shrink: 0;
+}
+
+.title-wrap {
+  min-width: 0;
+  max-width: 420rpx;
 }
 
 .right {
   margin-left: auto;
   min-width: 58rpx;
   min-height: 58rpx;
+  padding-right: 174rpx;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -80,11 +101,17 @@ function goBack() {
   color: #123c32;
   font-size: 34rpx;
   font-weight: 900;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .subtitle {
   margin-top: 6rpx;
   color: #687078;
   font-size: 24rpx;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 </style>
