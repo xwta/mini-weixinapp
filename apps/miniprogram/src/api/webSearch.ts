@@ -41,8 +41,10 @@ export interface WebSongSearchResult {
 }
 
 export async function searchWebSong(keyword: string) {
+  // 谱灵定位是“搜吉他谱工具”，用户输入歌名即可。
+  // 即使用户没有显式输入“吉他谱/和弦谱/弹唱谱”，也默认走 tabLookup。
   return request<WebSongSearchResult>('web-search', {
-    action: 'songLookup',
+    action: 'tabLookup',
     keyword,
   })
 }
