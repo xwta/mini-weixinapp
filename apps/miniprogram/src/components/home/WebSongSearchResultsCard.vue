@@ -29,7 +29,7 @@
             <text class="ref-score">{{ Math.round(ref.tab_score || 0) }}分</text>
           </view>
         </view>
-        <view class="open-btn">{{ openingUrl === getResourceKey(ref) ? '打开中' : '打开' }}</view>
+        <view class="open-btn">{{ openingUrl === getResourceKey(ref) ? '解析中' : '打开' }}</view>
       </view>
     </view>
 
@@ -53,7 +53,7 @@
       </view>
     </view>
 
-    <view class="notice">图片谱会先拉到云存储临时预览；网页谱仍保留原始来源链接。AI 生成只是兜底。</view>
+    <view class="notice">点“打开”会解析搜索入口/网页/图片，尽量在小程序内直接预览图片谱。AI 生成只是兜底。</view>
 
     <view class="actions">
       <view class="ghost-btn" @tap="emit('searchAgain')">换个关键词</view>
@@ -85,6 +85,8 @@ const topReferences = computed(() => {
   const refs = props.candidates.flatMap((item) => item.tabReferences || item.references || [])
   return refs.slice(0, 8)
 })
+
+const primaryCandidate = computed(() => props.candidates[0])
 
 function getConfidenceText(candidate: WebSongCandidate) {
   return `${Math.round((candidate.confidence || 0) * 100)}%`
@@ -118,35 +120,35 @@ function getFallbackSummary(candidate: WebSongCandidate) {
 }
 
 function getResourceKey(ref: WebSearchReference) {
-  return ref.image_url || ref.thumbnail_url || ref.url || ''
+  return ref.image_url || ref.thumbnail_url || ref.url || ref.title || ''
+}
+
+function buildSearchQuery(ref: WebSearchReference) {
+  const candidate = primaryCandidate.value
+  const parts = [candidate?.title, candidate?.artist, ref.title]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/百度图片[:：]?|百度搜索[:：]?|Bing搜索[:：]?|搜索入口|网页谱|图片谱|TXT谱/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return parts || ref.title || candidate?.title || ''
 }
 
 async function openResource(ref: WebSearchReference) {
-  const imageUrl = ref.image_url || ref.thumbnail_url || ''
-  const resourceUrl = ref.url || imageUrl
-  if (!resourceUrl) {
+  const key = getResourceKey(ref)
+  if (!key) {
     uni.showToast({ title: '资源链接为空', icon: 'none' })
     return
   }
-
-  if (getRefType(ref) === 'image' && imageUrl) {
-    await openImageInsideMiniProgram(ref)
-    return
-  }
-
-  copyResourceUrl(resourceUrl)
-}
-
-async function openImageInsideMiniProgram(ref: WebSearchReference) {
-  const key = getResourceKey(ref)
   openingUrl.value = key
   try {
-    uni.showLoading({ title: '加载图片谱' })
+    uni.showLoading({ title: '解析资源' })
     const result = await previewResourceImage({
       title: ref.title,
       url: ref.url,
       image_url: ref.image_url,
       thumbnail_url: ref.thumbnail_url,
+      search_query: buildSearchQuery(ref),
     })
     uni.hideLoading()
     uni.previewImage({
@@ -156,7 +158,7 @@ async function openImageInsideMiniProgram(ref: WebSearchReference) {
     })
   } catch (error: any) {
     uni.hideLoading()
-    uni.showToast({ title: error?.message || '图片谱加载失败', icon: 'none' })
+    uni.showToast({ title: error?.message || '资源解析失败', icon: 'none' })
     copyResourceUrl(ref.url || ref.image_url || ref.thumbnail_url || '')
   } finally {
     openingUrl.value = ''
