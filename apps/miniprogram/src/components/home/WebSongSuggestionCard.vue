@@ -1,9 +1,9 @@
 <template>
   <view class="suggestion-card">
     <view class="card-head">
-      <view class="icon-box">⌕</view>
+      <view class="icon-box">♪</view>
       <view class="head-main">
-        <text class="eyebrow">网络搜索候选</text>
+        <text class="eyebrow">已选择歌曲</text>
         <text class="title">{{ candidate.title }}</text>
       </view>
       <view class="score">{{ confidenceText }}</view>
@@ -12,18 +12,22 @@
     <text v-if="candidate.artist" class="artist">歌手：{{ candidate.artist }}</text>
     <text class="summary">{{ candidate.summary }}</text>
 
-    <view v-if="candidate.references?.length" class="refs">
-      <text class="refs-title">参考摘要</text>
-      <view v-for="(item, index) in candidate.references.slice(0, 2)" :key="item.url || index" class="ref-item">
+    <view v-if="candidate.tabReferences?.length || candidate.references?.length" class="refs">
+      <text class="refs-title">{{ candidate.tabReferences?.length ? '吉他谱搜索线索' : '参考摘要' }}</text>
+      <view
+        v-for="(item, index) in displayReferences"
+        :key="item.url || `${item.title}-${index}`"
+        class="ref-item"
+      >
         <text class="ref-dot">{{ index + 1 }}</text>
         <text class="ref-text">{{ item.title }}</text>
       </view>
     </view>
 
-    <view class="notice">将生成 AI 简化弹唱编配版，不复制第三方完整歌词或现成曲谱。</view>
+    <view class="notice">确认后才会生成 AI 简化弹唱编配版，不复制第三方完整歌词或现成曲谱。</view>
 
     <view class="actions">
-      <view class="ghost-btn" @tap="emit('searchAgain')">换个关键词</view>
+      <view class="ghost-btn" @tap="emit('back')">返回搜索结果</view>
       <view class="primary-btn" :class="{ loading }" @tap="emit('generate')">
         {{ loading ? '生成中' : 'AI生成吉他谱' }}
       </view>
@@ -44,10 +48,11 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   generate: []
-  searchAgain: []
+  back: []
 }>()
 
 const confidenceText = computed(() => `${Math.round((props.candidate.confidence || 0) * 100)}%`)
+const displayReferences = computed(() => (props.candidate.tabReferences?.length ? props.candidate.tabReferences : props.candidate.references || []).slice(0, 3))
 </script>
 
 <style scoped>
