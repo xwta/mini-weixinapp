@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 withDefaults(defineProps<{
-  active?: 'chat' | 'community' | 'mine'
+  active?: 'chat' | 'tuner' | 'mine'
 }>(), {
   active: 'chat',
 })
@@ -27,7 +27,7 @@ const emit = defineEmits<{
 
 const tabs = [
   { label: '谱灵', value: 'chat', icon: '♪' },
-  { label: '社区', value: 'community', icon: '◎' },
+  { label: '调音', value: 'tuner', icon: '♬' },
   { label: '我的', value: 'mine', icon: '♙' },
 ]
 </script>
