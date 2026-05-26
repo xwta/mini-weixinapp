@@ -29,7 +29,7 @@
             <text class="ref-score">{{ Math.round(ref.tab_score || 0) }}分</text>
           </view>
         </view>
-        <view class="open-btn">打开</view>
+        <view class="open-btn">{{ openingUrl === getResourceKey(ref) ? '打开中' : '打开' }}</view>
       </view>
     </view>
 
@@ -53,7 +53,7 @@
       </view>
     </view>
 
-    <view class="notice">点“打开”会优先预览图片谱；网页谱会复制链接，你可在浏览器或百度里打开。AI 生成只是兜底。</view>
+    <view class="notice">图片谱会先拉到云存储临时预览；网页谱仍保留原始来源链接。AI 生成只是兜底。</view>
 
     <view class="actions">
       <view class="ghost-btn" @tap="emit('searchAgain')">换个关键词</view>
@@ -63,7 +63,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { previewResourceImage } from '@/api/resourcePreview'
 import type { WebSearchReference, WebSongCandidate } from '@/api/webSearch'
 
 const props = withDefaults(defineProps<{
@@ -77,6 +78,8 @@ const emit = defineEmits<{
   select: [candidate: WebSongCandidate]
   searchAgain: []
 }>()
+
+const openingUrl = ref('')
 
 const topReferences = computed(() => {
   const refs = props.candidates.flatMap((item) => item.tabReferences || item.references || [])
@@ -114,7 +117,11 @@ function getFallbackSummary(candidate: WebSongCandidate) {
   return candidate.artist ? `识别到《${candidate.title}》 - ${candidate.artist}` : `识别到《${candidate.title}》`
 }
 
-function openResource(ref: WebSearchReference) {
+function getResourceKey(ref: WebSearchReference) {
+  return ref.image_url || ref.thumbnail_url || ref.url || ''
+}
+
+async function openResource(ref: WebSearchReference) {
   const imageUrl = ref.image_url || ref.thumbnail_url || ''
   const resourceUrl = ref.url || imageUrl
   if (!resourceUrl) {
@@ -123,18 +130,41 @@ function openResource(ref: WebSearchReference) {
   }
 
   if (getRefType(ref) === 'image' && imageUrl) {
-    uni.previewImage({
-      urls: [imageUrl],
-      current: imageUrl,
-      fail: () => copyResourceUrl(resourceUrl),
-    })
+    await openImageInsideMiniProgram(ref)
     return
   }
 
   copyResourceUrl(resourceUrl)
 }
 
+async function openImageInsideMiniProgram(ref: WebSearchReference) {
+  const key = getResourceKey(ref)
+  openingUrl.value = key
+  try {
+    uni.showLoading({ title: '加载图片谱' })
+    const result = await previewResourceImage({
+      title: ref.title,
+      url: ref.url,
+      image_url: ref.image_url,
+      thumbnail_url: ref.thumbnail_url,
+    })
+    uni.hideLoading()
+    uni.previewImage({
+      urls: [result.tempFileURL],
+      current: result.tempFileURL,
+      fail: () => copyResourceUrl(result.sourceUrl || ref.url || ref.image_url || ref.thumbnail_url || ''),
+    })
+  } catch (error: any) {
+    uni.hideLoading()
+    uni.showToast({ title: error?.message || '图片谱加载失败', icon: 'none' })
+    copyResourceUrl(ref.url || ref.image_url || ref.thumbnail_url || '')
+  } finally {
+    openingUrl.value = ''
+  }
+}
+
 function copyResourceUrl(url: string) {
+  if (!url) return
   uni.setClipboardData({
     data: url,
     success: () => {
@@ -332,13 +362,13 @@ function copyResourceUrl(url: string) {
 
 .open-btn,
 .choose-btn {
-  width: 74rpx;
+  width: 82rpx;
   height: 48rpx;
   margin-left: 12rpx;
   border-radius: 999rpx;
   background: #0BA45A;
   color: #FFFFFF;
-  font-size: 21rpx;
+  font-size: 20rpx;
   font-weight: 900;
   display: flex;
   align-items: center;
