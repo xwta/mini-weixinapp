@@ -10,6 +10,9 @@ const users = db.collection('users')
 const follows = db.collection('follows')
 const practiceRecords = db.collection('practice_records')
 
+const MAX_QUERY_LIMIT = 100
+const MAX_SEARCH_SCAN = 3000
+
 function toSongId(item = {}) {
   return item.id || item._id
 }
@@ -31,13 +34,35 @@ function normalizeText(text = '') {
   return String(text || '')
     .toLowerCase()
     .replace(/[《》【】\[\]（）()]/g, ' ')
-    .replace(/吉他谱|曲谱|谱子|弹唱谱|和弦谱|歌词|歌曲|简谱|完整版|原版|c调|g调|新手|简单版/g, ' ')
+    .replace(/吉他谱|曲谱|谱子|弹唱谱|和弦谱|歌词|歌曲|简谱|完整版|原版|c调|g调|d调|a调|e调|f调|b调|新手|简单版|教学|指弹|尤克里里/g, ' ')
     .replace(/[\s\-_·,，、。:：|｜/\\]+/g, ' ')
     .trim()
 }
 
+function normalizeCompact(text = '') {
+  return normalizeText(text).replace(/\s+/g, '')
+}
+
+function escapeRegExp(text = '') {
+  return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function uniqueStrings(items = []) {
   return Array.from(new Set(items.map((item) => String(item || '').trim()).filter(Boolean)))
+}
+
+function buildSearchVariants(keyword = '') {
+  const raw = String(keyword || '').trim()
+  const normalized = normalizeText(raw)
+  const compact = normalizeCompact(raw)
+  const tokens = normalized.split(' ').filter((token) => token.length >= 1)
+  return uniqueStrings([
+    raw,
+    normalized,
+    compact,
+    ...tokens,
+    ...tokens.map((token) => token.replace(/调$/, '')),
+  ]).filter((item) => item.length >= 1).slice(0, 8)
 }
 
 function buildSearchKeywords(song = {}) {
@@ -58,6 +83,8 @@ function buildSearchKeywords(song = {}) {
     `${title} 吉他谱`,
     `${title} 弹唱`,
     `${title} 和弦`,
+    `${title} chords`,
+    normalizeCompact(title),
     pinyin,
     initials,
     ...aliases,
@@ -68,37 +95,55 @@ function buildSearchKeywords(song = {}) {
   ])
 }
 
+function buildSearchText(song = {}) {
+  return uniqueStrings([
+    song.title,
+    song.artist_name,
+    song.author_name,
+    song.pinyin,
+    song.initials,
+    song.search_fingerprint,
+    ...(Array.isArray(song.aliases) ? song.aliases : []),
+    ...(Array.isArray(song.search_keywords) ? song.search_keywords : []),
+    ...(Array.isArray(song.tags) ? song.tags : []),
+  ]).map(normalizeText).join(' ')
+}
+
 function scoreSong(item = {}, rawKeyword = '') {
   const keyword = normalizeText(rawKeyword)
+  const compactKeyword = normalizeCompact(rawKeyword)
   if (!keyword) return 1
 
   const title = normalizeText(item.title)
+  const compactTitle = normalizeCompact(item.title)
   const artist = normalizeText(item.artist_name || item.author_name)
   const pinyin = normalizeText(item.pinyin)
   const initials = normalizeText(item.initials)
   const aliases = (Array.isArray(item.aliases) ? item.aliases : []).map(normalizeText)
   const searchKeywords = buildSearchKeywords(item).map(normalizeText)
-  const haystack = uniqueStrings([title, artist, pinyin, initials, ...aliases, ...searchKeywords]).join(' ')
+  const haystack = uniqueStrings([title, compactTitle, artist, pinyin, initials, ...aliases, ...searchKeywords, buildSearchText(item)]).join(' ')
   const tokens = keyword.split(' ').filter(Boolean)
 
   let score = 0
-  if (title === keyword) score += 120
-  if (artist && `${title} ${artist}` === keyword) score += 115
-  if (artist && `${artist} ${title}` === keyword) score += 115
-  if (title && title.includes(keyword)) score += 90
-  if (keyword.includes(title) && title.length >= 2) score += 75
-  if (artist && artist.includes(keyword)) score += 55
-  if (pinyin && pinyin.includes(keyword)) score += 58
-  if (initials && initials === keyword) score += 65
-  if (aliases.some((alias) => alias.includes(keyword) || keyword.includes(alias))) score += 70
-  if (searchKeywords.some((word) => word === keyword)) score += 62
-  if (searchKeywords.some((word) => word.includes(keyword) || keyword.includes(word))) score += 42
+  if (title === keyword || compactTitle === compactKeyword) score += 160
+  if (artist && `${title} ${artist}` === keyword) score += 135
+  if (artist && `${artist} ${title}` === keyword) score += 135
+  if (title && title.includes(keyword)) score += 115
+  if (compactTitle && compactKeyword && compactTitle.includes(compactKeyword)) score += 112
+  if (keyword.includes(title) && title.length >= 2) score += 96
+  if (compactKeyword.includes(compactTitle) && compactTitle.length >= 2) score += 96
+  if (artist && artist.includes(keyword)) score += 72
+  if (pinyin && pinyin.includes(keyword)) score += 68
+  if (initials && initials === compactKeyword) score += 82
+  if (aliases.some((alias) => alias.includes(keyword) || keyword.includes(alias))) score += 78
+  if (searchKeywords.some((word) => word === keyword || normalizeCompact(word) === compactKeyword)) score += 74
+  if (searchKeywords.some((word) => word.includes(keyword) || keyword.includes(word) || normalizeCompact(word).includes(compactKeyword))) score += 54
 
   const tokenHits = tokens.filter((token) => haystack.includes(token)).length
-  score += tokenHits * 18
+  score += tokenHits * 22
 
-  if (item.has_tab === false) score -= 6
-  if (item.source_type === 'seed') score -= 4
+  if (item.has_tab === false) score -= 4
+  if (item.source_type === 'seed' || item.source_type === 'seed_bulk') score += 8
   score += Math.min(20, Number(item.like_count || 0) * 0.2)
   score += Math.min(16, Number(item.favorite_count || 0) * 0.2)
   score += Math.min(12, Number(item.view_count || 0) * 0.02)
@@ -193,7 +238,88 @@ function buildSeedSongData(seed = {}, now = new Date()) {
   }
 
   data.search_keywords = buildSearchKeywords(data)
+  data.search_fingerprint = normalizeText(`${title} ${artistName}`)
+  data.search_text = buildSearchText(data)
   return data
+}
+
+function mergeSongMaps(target, rows = [], keyword = '') {
+  rows.forEach((row) => {
+    if (!row?._id) return
+    const existed = target.get(row._id)
+    const normalized = normalizeSong({
+      ...row,
+      search_keywords: Array.isArray(row.search_keywords) ? row.search_keywords : buildSearchKeywords(row),
+      search_text: row.search_text || buildSearchText(row),
+    })
+    const scored = { ...normalized, _search_score: scoreSong(normalized, keyword) }
+    if (!existed || Number(scored._search_score || 0) > Number(existed._search_score || 0)) {
+      target.set(row._id, scored)
+    }
+  })
+}
+
+async function safeGet(query) {
+  try {
+    const result = await query.limit(MAX_QUERY_LIMIT).get()
+    return result.data || []
+  } catch (error) {
+    console.log('search query failed', error?.message || error)
+    return []
+  }
+}
+
+async function queryRegexField(field, value, base = {}) {
+  if (!value) return []
+  const regexp = escapeRegExp(value)
+  if (!regexp) return []
+  return safeGet(songs.where({
+    ...base,
+    [field]: db.RegExp({ regexp, options: 'i' }),
+  }))
+}
+
+async function queryExactArrayField(field, values = [], base = {}) {
+  const list = uniqueStrings(values).filter(Boolean).slice(0, 20)
+  if (!list.length) return []
+  return safeGet(songs.where({
+    ...base,
+    [field]: _.in(list),
+  }))
+}
+
+async function fetchSearchCandidates(keyword = '', base = {}, sortField = 'created_at') {
+  const variants = buildSearchVariants(keyword)
+  const keywordMap = new Map()
+
+  for (const variant of variants) {
+    const compact = normalizeCompact(variant)
+    const rows = await Promise.all([
+      queryRegexField('title', variant, base),
+      queryRegexField('artist_name', variant, base),
+      queryRegexField('pinyin', variant, base),
+      queryRegexField('initials', compact, base),
+      queryRegexField('search_fingerprint', variant, base),
+      queryRegexField('search_text', variant, base),
+      queryExactArrayField('search_keywords', [variant, compact, `${variant} 吉他谱`, `${variant} 弹唱`, `${variant} 和弦谱`], base),
+      queryExactArrayField('aliases', [variant, `${variant}吉他谱`, `${variant}弹唱`, `${variant}和弦谱`], base),
+    ])
+    rows.flat().forEach((row) => mergeSongMaps(keywordMap, [row], keyword))
+    if (keywordMap.size >= 80) break
+  }
+
+  if (keywordMap.size < 8) {
+    let skip = 0
+    while (skip < MAX_SEARCH_SCAN && keywordMap.size < 120) {
+      const result = await songs.where(base).orderBy(sortField, 'desc').skip(skip).limit(MAX_QUERY_LIMIT).get()
+      const rows = result.data || []
+      if (!rows.length) break
+      mergeSongMaps(keywordMap, rows, keyword)
+      skip += MAX_QUERY_LIMIT
+    }
+  }
+
+  return Array.from(keywordMap.values())
 }
 
 exports.main = async (event = {}) => {
@@ -290,6 +416,8 @@ exports.main = async (event = {}) => {
       updated_at: now,
     }
     data.search_keywords = buildSearchKeywords(data)
+    data.search_text = buildSearchText(data)
+    data.search_fingerprint = normalizeText(`${data.title} ${data.artist_name}`)
 
     const result = await songs.add({ data })
     await users.doc(user._id).update({ data: { works_count: _.inc(1), updated_at: now } })
@@ -359,25 +487,28 @@ exports.main = async (event = {}) => {
     const sort = event.sort || 'created_at'
     const sortField = sort === 'likes' ? 'like_count' : sort === 'favorites' ? 'favorite_count' : sort === 'views' ? 'view_count' : 'created_at'
 
-    let query = songs.where({ is_public: true })
-    if (difficulty) query = songs.where({ is_public: true, difficulty })
-    if (sourceType) query = songs.where({ is_public: true, source_type: sourceType })
+    const base = { is_public: true }
+    if (difficulty) base.difficulty = difficulty
+    if (sourceType) base.source_type = sourceType
 
-    const result = await query.orderBy(sortField, 'desc').get()
-    let items = result.data.map((item) => normalizeSong({
-      ...item,
-      search_keywords: Array.isArray(item.search_keywords) ? item.search_keywords : buildSearchKeywords(item),
-    }))
+    let items = []
+    if (normalizedKeyword) {
+      items = await fetchSearchCandidates(keyword, base, sortField)
+        .then((rows) => rows
+          .map((item) => ({ ...item, _search_score: scoreSong(item, keyword) }))
+          .filter((item) => item._search_score > 0)
+          .sort((a, b) => Number(b._search_score || 0) - Number(a._search_score || 0)))
+    } else {
+      const result = await songs.where(base).orderBy(sortField, 'desc').limit(MAX_QUERY_LIMIT).get()
+      items = result.data.map((item) => normalizeSong({
+        ...item,
+        search_keywords: Array.isArray(item.search_keywords) ? item.search_keywords : buildSearchKeywords(item),
+        search_text: item.search_text || buildSearchText(item),
+      }))
+    }
 
     if (songKey) {
       items = items.filter((item) => String(item.song_key || '').toLowerCase() === songKey.toLowerCase())
-    }
-
-    if (normalizedKeyword) {
-      items = items
-        .map((item) => ({ ...item, _search_score: scoreSong(item, keyword) }))
-        .filter((item) => item._search_score > 0)
-        .sort((a, b) => Number(b._search_score || 0) - Number(a._search_score || 0))
     }
 
     return { code: 0, data: paginate(items, page, pageSize) }
