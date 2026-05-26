@@ -30,7 +30,7 @@ const emit = defineEmits<{
 <style scoped>
 .home-hero-wrap {
   width: 750rpx;
-  padding: calc(env(safe-area-inset-top) + 44rpx) 32rpx 0;
+  padding: calc(env(safe-area-inset-top) + 104rpx) 32rpx 0;
   box-sizing: border-box;
 }
 
@@ -105,6 +105,7 @@ const emit = defineEmits<{
   height: 60rpx;
   min-width: 116rpx;
   padding: 0 20rpx;
+  margin-right: 16rpx;
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.92);
   border: 1rpx solid rgba(225, 234, 229, 0.96);
