@@ -37,12 +37,17 @@
       </view>
     </view>
 
-    <view class="notice">可查看曲谱资源，也可以使用 AI 编配生成适合练习的版本。</view>
+    <view class="notice">请选择生成类型。TXT 谱适合编辑和练习；图片六线谱适合像看谱图一样上下滚动阅读。</view>
 
     <view class="actions">
       <view class="ghost-btn" @tap="emit('back')">返回结果</view>
-      <view class="secondary-btn" :class="{ loading }" @tap="emit('generate')">
-        {{ loading ? '编配中' : 'AI编配' }}
+    </view>
+    <view class="generate-row">
+      <view class="secondary-btn" :class="{ loading }" @tap="emit('generate', 'txt')">
+        {{ loading ? '生成中' : '生成TXT谱' }}
+      </view>
+      <view class="image-btn" :class="{ loading }" @tap="emit('generate', 'image')">
+        {{ loading ? '生成中' : '生成图片六线谱' }}
       </view>
     </view>
   </view>
@@ -51,6 +56,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { WebSearchReference, WebSongCandidate } from '@/api/webSearch'
+import type { TabOutputType } from '@/api/ai'
 
 const props = withDefaults(defineProps<{
   candidate: WebSongCandidate
@@ -60,7 +66,7 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  generate: []
+  generate: [type: TabOutputType]
   back: []
   openResource: [resource: WebSearchReference]
 }>()
@@ -78,24 +84,14 @@ function getRefType(ref: WebSearchReference) {
 function getRefTypeLabel(ref: WebSearchReference) {
   const type = getRefType(ref)
   if (type === 'image') return '图片谱'
-  if (type === 'text') return '文本谱'
+  if (type === 'text') return '线索'
   if (type === 'fallback') return '搜索入口'
   return '网页谱'
 }
 </script>
 
 <style scoped>
-.suggestion-card {
-  width: 686rpx;
-  margin: 0 32rpx 24rpx;
-  padding: 24rpx;
-  box-sizing: border-box;
-  border-radius: 28rpx;
-  background: #FFFFFF;
-  border: 1rpx solid #E8EFEA;
-  box-shadow: 0 12rpx 34rpx rgba(18, 52, 36, 0.06);
-  animation: cardIn .22s ease-out;
-}
+.suggestion-card { width: 686rpx; margin: 0 32rpx 24rpx; padding: 24rpx; box-sizing: border-box; border-radius: 28rpx; background: #FFFFFF; border: 1rpx solid #E8EFEA; box-shadow: 0 12rpx 34rpx rgba(18, 52, 36, 0.06); animation: cardIn .22s ease-out; }
 .card-head { display: flex; align-items: center; }
 .icon-box { width: 72rpx; height: 72rpx; margin-right: 18rpx; border-radius: 24rpx; background: #EAF8F0; color: #0BA45A; font-size: 36rpx; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .head-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -123,9 +119,11 @@ function getRefTypeLabel(ref: WebSearchReference) {
 .open-btn { width: 74rpx; height: 48rpx; margin-left: 12rpx; border-radius: 999rpx; background: #0BA45A; color: #FFFFFF; font-size: 21rpx; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .notice { margin-top: 18rpx; color: #A06A15; background: #FFF8E8; border-radius: 18rpx; padding: 14rpx 18rpx; font-size: 22rpx; line-height: 32rpx; }
 .actions { margin-top: 22rpx; display: flex; gap: 14rpx; }
-.ghost-btn, .secondary-btn { flex: 1; height: 68rpx; border-radius: 999rpx; display: flex; align-items: center; justify-content: center; font-size: 25rpx; font-weight: 800; }
+.generate-row { margin-top: 14rpx; display: flex; gap: 14rpx; }
+.ghost-btn, .secondary-btn, .image-btn { flex: 1; height: 68rpx; border-radius: 999rpx; display: flex; align-items: center; justify-content: center; font-size: 25rpx; font-weight: 800; }
 .ghost-btn { background: #F6FAF8; color: #5F6B65; border: 1rpx solid #E8EFEA; }
 .secondary-btn { background: #EAF8F0; color: #0BA45A; border: 1rpx solid #D8F0E4; }
-.secondary-btn.loading { opacity: .68; }
+.image-btn { background: #17231E; color: #FFFFFF; border: 1rpx solid #17231E; }
+.secondary-btn.loading, .image-btn.loading { opacity: .68; }
 @keyframes cardIn { from { opacity: 0; transform: translateY(12rpx); } to { opacity: 1; transform: translateY(0); } }
 </style>
