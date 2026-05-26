@@ -28,6 +28,7 @@ const TRUSTED_TAB_DOMAINS = [
 ]
 
 const LOW_VALUE_HOSTS = ['baidu.com', 'm.baidu.com', 'image.baidu.com', 'bing.com', 'sogou.com']
+const BLOCKED_RESOURCE_RE = /(?:视频|教学|下载|网盘|app|破解|付费|登录|论坛|社区|问答)/i
 
 function jsonResponse(code, dataOrMessage) {
   if (code === 0) return { code, data: dataOrMessage }
@@ -177,16 +178,35 @@ function buildFastQueries(keyword = '') {
   return uniqueStrings([
     `${base} 吉他谱`,
     `${base} 和弦谱`,
+    `${base} 弹唱谱`,
     `${base} 高清图片谱`,
-  ]).slice(0, 3)
+  ]).slice(0, 4)
 }
 
-function inferType(item = {}) {
+function getRefType(item = {}) {
+  const provider = String(item.provider || '').toLowerCase()
   const text = `${item.title || ''} ${item.snippet || ''} ${item.url || ''}`.toLowerCase()
-  if (item.thumbnail_url || item.image_url || /图片谱|image/.test(text)) return 'image'
-  if (/txt|文本谱|和弦谱|chord/.test(text)) return 'text'
-  if (/百度搜索|百度图片|搜索入口/.test(item.title || '')) return 'fallback'
+  const title = String(item.title || '')
+  const host = parseHost(item.url)
+
+  if (/百度搜索|百度图片|搜索入口|^搜索[:：]/.test(title) || item.result_type === 'fallback') return 'fallback'
+  if (provider.includes('image') || item.thumbnail_url || item.image_url || /图片谱|高清图片|image/.test(text)) return 'image'
+  if (/txt|文本谱|和弦谱|chord|弹唱谱|六线谱|变调夹|capo|原调|选调/.test(text)) return 'text'
+  if (TRUSTED_TAB_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`))) return 'text'
   return 'web'
+}
+
+function isPreviewableReference(ref = {}) {
+  return getRefType(ref) === 'image' && Boolean(ref.thumbnail_url || ref.image_url || ref.url)
+}
+
+function isImportableReference(ref = {}) {
+  const type = getRefType(ref)
+  if (!['text', 'web'].includes(type)) return false
+  const text = `${ref.title || ''} ${ref.snippet || ''} ${ref.url || ''}`
+  if (BLOCKED_RESOURCE_RE.test(text)) return false
+  if (/\.(?:jpg|jpeg|png|webp|gif|pdf)(?:\?|$)/i.test(ref.url || '')) return false
+  return /吉他谱|和弦谱|弹唱谱|六线谱|txt|chord|tab|变调夹|原调|选调/i.test(text)
 }
 
 function isTabLike(text = '') {
@@ -206,19 +226,35 @@ function scoreReference(item = {}, query = '') {
   if (compactClean && compactAll.includes(compactClean)) score += 26
   if (isTabLike(text)) score += 38
   if (/吉他谱|和弦谱|弹唱谱|六线谱/.test(text)) score += 30
-  if (/图片谱|高清/.test(text) || item.result_type === 'image' || item.thumbnail_url) score += 18
-  if (/变调夹|capo|原调|选调|c调|g调|d调|和弦/.test(text)) score += 14
-  if (/txt|文本|chord/.test(text)) score += 12
-  if (TRUSTED_TAB_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`))) score += 22
-  if (LOW_VALUE_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`))) score -= item.result_type === 'fallback' ? 12 : 4
-  if (/广告|下载|app|破解|付费|网盘|视频|教学/.test(text)) score -= 18
-  if (/百度|bing|搜索/.test(item.title || '') && item.result_type !== 'fallback') score -= 12
+  if (/图片谱|高清/.test(text) || getRefType(item) === 'image') score += 18
+  if (/变调夹|capo|原调|选调|c调|g调|d调|和弦/.test(text)) score += 16
+  if (/txt|文本|chord/.test(text)) score += 14
+  if (TRUSTED_TAB_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`))) score += 26
+  if (LOW_VALUE_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`))) score -= getRefType(item) === 'fallback' ? 12 : 4
+  if (BLOCKED_RESOURCE_RE.test(text)) score -= 28
+  if (/百度|bing|搜索/.test(item.title || '') && getRefType(item) !== 'fallback') score -= 12
+  if (isImportableReference(item)) score += 10
+  if (isPreviewableReference(item)) score += 8
 
   return score
 }
 
+function enrichReference(ref = {}) {
+  const resultType = getRefType(ref)
+  const importable = isImportableReference({ ...ref, result_type: resultType })
+  const previewable = isPreviewableReference({ ...ref, result_type: resultType })
+  return {
+    ...ref,
+    result_type: resultType,
+    importable,
+    previewable,
+    action_hint: previewable ? 'preview' : importable ? 'import' : 'view_only',
+    action_label: previewable ? '预览图片谱' : importable ? '转为谱面' : '仅作参考',
+  }
+}
+
 function makeRef({ title, url, snippet = '', provider = 'baidu', query = '', resultType = 'web', thumbnailUrl = '', imageUrl = '', scoreBoost = 0 }) {
-  const ref = {
+  const raw = {
     title: stripHtml(title).slice(0, 120),
     url: safeUrl(url).slice(0, 500),
     snippet: stripHtml(snippet).slice(0, 220),
@@ -229,7 +265,7 @@ function makeRef({ title, url, snippet = '', provider = 'baidu', query = '', res
     image_url: safeUrl(imageUrl),
     source_site: parseHost(url),
   }
-  ref.result_type = inferType(ref)
+  const ref = enrichReference(raw)
   ref.tab_score = scoreReference(ref, query) + Number(scoreBoost || 0)
   return ref
 }
@@ -238,19 +274,24 @@ function compactReferences(references = [], max = MAX_REFERENCES) {
   const seen = new Set()
   const items = references
     .filter((item) => item && item.title && item.url)
-    .map((item) => ({ ...item, result_type: inferType(item), tab_score: Number(item.tab_score || 0) }))
+    .map((item) => enrichReference({ ...item, tab_score: Number(item.tab_score || 0) }))
     .filter((item) => {
+      if (BLOCKED_RESOURCE_RE.test(`${item.title || ''} ${item.snippet || ''}`) && !item.previewable && !item.importable) return false
       const normalizedUrl = item.url.replace(/[?&](?:from|utm_[^=]+|spm|fr)=[^&]+/g, '')
       const key = `${parseHost(item.url)}:${stableKey(item.title)}:${normalizedUrl.slice(0, 120)}`
       if (seen.has(key)) return false
       seen.add(key)
       return true
     })
-    .sort((a, b) => Number(b.tab_score || 0) - Number(a.tab_score || 0))
+    .sort((a, b) => {
+      const actionScore = (b.importable ? 18 : 0) + (b.previewable ? 12 : 0) - ((a.importable ? 18 : 0) + (a.previewable ? 12 : 0))
+      return actionScore || Number(b.tab_score || 0) - Number(a.tab_score || 0)
+    })
 
-  const primary = items.filter((item) => item.result_type !== 'fallback').slice(0, max)
-  const fallback = items.filter((item) => item.result_type === 'fallback').slice(0, Math.max(0, max - primary.length))
-  return [...primary, ...fallback].slice(0, max)
+  const usable = items.filter((item) => item.importable || item.previewable).slice(0, max)
+  const viewOnly = items.filter((item) => !item.importable && !item.previewable && item.result_type !== 'fallback').slice(0, Math.max(0, max - usable.length))
+  const fallback = items.filter((item) => item.result_type === 'fallback').slice(0, Math.max(0, max - usable.length - viewOnly.length))
+  return [...usable, ...viewOnly, ...fallback].slice(0, max)
 }
 
 function getBaiduDirectUrl(block = '') {
@@ -280,7 +321,8 @@ function parseBaiduWeb(html = '', query = '') {
     const snippetMatch = block.match(/<span[^>]+class=(['"])[^'"]*(?:content-right|c-abstract|c-span-last|c-color-text|c-line-clamp)[^'"]*\1[^>]*>([\s\S]*?)<\/span>/i)
       || block.match(/<div[^>]+class=(['"])[^'"]*(?:c-abstract|content|c-line-clamp|c-result-content)[^'"]*\1[^>]*>([\s\S]*?)<\/div>/i)
       || block.match(/<p[^>]*>([\s\S]*?)<\/p>/i)
-    results.push(makeRef({ title: titleMatch[3], url: getBaiduDirectUrl(block) || titleMatch[2], snippet: snippetMatch?.[2] || snippetMatch?.[1] || '', provider: 'baidu', query, scoreBoost: 12 }))
+    const ref = makeRef({ title: titleMatch[3], url: getBaiduDirectUrl(block) || titleMatch[2], snippet: snippetMatch?.[2] || snippetMatch?.[1] || '', provider: 'baidu', query, scoreBoost: 12 })
+    if (ref.importable || ref.previewable || ref.tab_score > 48) results.push(ref)
   }
   return compactReferences(results, 8)
 }
@@ -350,8 +392,9 @@ function extractArrangementHints(references = []) {
     possibleCapos: Array.from(new Set(possibleCapos)),
     possibleChords,
     tabReferenceCount: references.length,
-    imageReferenceCount: references.filter((item) => item.result_type === 'image' || item.thumbnail_url).length,
-    textReferenceCount: references.filter((item) => item.result_type !== 'image' && !item.thumbnail_url).length,
+    imageReferenceCount: references.filter((item) => item.result_type === 'image' || item.previewable).length,
+    textReferenceCount: references.filter((item) => item.importable).length,
+    viewOnlyCount: references.filter((item) => !item.importable && !item.previewable).length,
   }
 }
 
@@ -368,7 +411,7 @@ function buildCandidate(keyword, references, debug = []) {
     confidence: references.length ? 0.9 : 0.62,
     source: references.length ? 'tab_resource_search' : 'tab_resource_entry',
     summary: references.length
-      ? `已找到 ${refs.length} 条曲谱资源，其中 ${hints.imageReferenceCount || 0} 条图片谱、${hints.textReferenceCount || 0} 条网页/文本谱。`
+      ? `已找到 ${refs.length} 条曲谱资源，其中 ${hints.imageReferenceCount || 0} 条可预览图片谱、${hints.textReferenceCount || 0} 条可转谱资源。`
       : '已准备好曲谱搜索入口，可继续查看资源或进行 AI 编配。',
     references: refs.slice(0, 8),
     tabReferences: refs,
@@ -385,7 +428,7 @@ exports.main = async (event = {}) => {
   if (!keyword) return jsonResponse(400, '请输入要搜索的歌曲关键词')
 
   const cleanKeyword = normalizeKeyword(keyword) || keyword
-  const cacheKey = `baidu_resource:${stableKey(cleanKeyword)}`
+  const cacheKey = `baidu_resource:v2:${stableKey(cleanKeyword)}`
   const memoryCached = getMemoryCache(cacheKey)
   if (memoryCached) return jsonResponse(0, memoryCached)
 
@@ -406,7 +449,7 @@ exports.main = async (event = {}) => {
       candidates: [candidate],
       canGenerate: true,
       provider: 'baidu_resource_search',
-      notice: '曲谱资源已按匹配度排序，可查看图片谱、导入文本谱或进行 AI 编配。',
+      notice: '曲谱资源已分为可预览、可转谱和参考结果，建议先预览或转谱后练习。',
       debug,
     }
     setMemoryCache(cacheKey, response)
