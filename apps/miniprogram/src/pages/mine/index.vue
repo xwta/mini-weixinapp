@@ -10,12 +10,12 @@
     </view>
 
     <view class="quick-card">
-      <view class="quick-item" @tap="goMain('/pages/chat/index')">
+      <view v-if="FEATURES.ENABLE_TAB_SEARCH" class="quick-item" @tap="goMain('/pages/chat/index')">
         <text class="quick-icon">⌕</text>
         <text class="quick-title">搜谱</text>
         <text class="quick-desc">找图片谱 / 文本谱</text>
       </view>
-      <view class="quick-item" @tap="goMain('/pages/community/index')">
+      <view v-if="FEATURES.ENABLE_TUNER" class="quick-item" @tap="goMain('/pages/community/index')">
         <text class="quick-icon">♬</text>
         <text class="quick-title">调音</text>
         <text class="quick-desc">麦克风自动识别</text>
@@ -27,12 +27,12 @@
       </view>
     </view>
 
-    <view class="quota-card" @tap="goMembership">
+    <view v-if="FEATURES.ENABLE_AI_GENERATE" class="quota-card" @tap="goMembership">
       <view>
         <text class="quota-title">AI 编配额度</text>
         <text class="quota-desc">今日还可生成 {{ auth.user?.generation_quota || 0 }} 次</text>
       </view>
-      <view class="quota-action">升级</view>
+      <view v-if="FEATURES.ENABLE_MEMBERSHIP" class="quota-action">升级</view>
     </view>
 
     <view class="stats-row">
@@ -100,6 +100,7 @@ import { getFavorites } from '@/api/favorites'
 import { getMyLikedSongs } from '@/api/social'
 import { getMySongs } from '@/api/songs'
 import { useAuthStore } from '@/stores/auth'
+import { FEATURES } from '@/config/features'
 import { clearRecentImports, clearRecentSearches, getRecentImports, getRecentSearches, type RecentImportItem, type RecentSearchItem } from '@/utils/recent'
 
 const auth = useAuthStore()
@@ -109,14 +110,15 @@ const recentSearches = ref<RecentSearchItem[]>([])
 
 const avatarText = computed(() => (auth.user?.nickname || '谱').slice(0, 1))
 
-const menus = [
-  { icon: '♪', label: '我的作品', path: '/pages/record/index?type=create' },
-  { icon: '♡', label: '我的收藏', path: '/pages/favorites/index' },
-  { icon: '▶', label: '练习记录', path: '/pages/record/index?type=practice' },
-  { icon: '♬', label: '调音器', path: '/pages/community/index' },
-  { icon: '◎', label: '我的订单', path: '/pages/orders/index' },
-  { icon: '⚙', label: '会员中心', path: '/pages/membership/index' },
-]
+const menus = computed(() => [
+  { icon: '♪', label: '我的作品', path: '/pages/record/index?type=create', show: true },
+  { icon: '♡', label: '我的收藏', path: '/pages/favorites/index', show: true },
+  { icon: '▶', label: '练习记录', path: '/pages/record/index?type=practice', show: true },
+  { icon: '♬', label: '调音器', path: '/pages/community/index', show: FEATURES.ENABLE_TUNER },
+  { icon: '◎', label: '我的订单', path: '/pages/orders/index', show: FEATURES.ENABLE_ORDERS },
+  { icon: '✉', label: '消息通知', path: '/pages/notifications/index', show: FEATURES.ENABLE_NOTIFICATIONS },
+  { icon: '⚙', label: '会员中心', path: '/pages/membership/index', show: FEATURES.ENABLE_MEMBERSHIP },
+].filter(item => item.show))
 
 onShow(() => {
   auth.restore()
@@ -201,6 +203,7 @@ function openMenu(path: string) {
 }
 
 function goMembership() {
+  if (!FEATURES.ENABLE_MEMBERSHIP) return
   uni.navigateTo({ url: '/pages/membership/index' })
 }
 
