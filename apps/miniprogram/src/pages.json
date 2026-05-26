@@ -50,6 +50,13 @@
       }
     },
     {
+      "path": "pages/resource-webview/index",
+      "style": {
+        "navigationBarTitleText": "曲谱资源",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/user-profile/index",
       "style": {
         "navigationBarTitleText": "用户主页",
