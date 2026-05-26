@@ -41,7 +41,7 @@
             :candidates="webCandidates"
             :source-label="webResultLabel"
             @select="selectWebCandidate"
-            @searchAgain="focusInput"
+            @searchAgain="refreshLastSearch"
           />
 
           <WebSongSuggestionCard
@@ -133,6 +133,7 @@ const webCandidates = ref<WebSongCandidate[]>([])
 const webCandidate = ref<WebSongCandidate | null>(null)
 const webResultLabel = ref('曲谱搜索结果')
 const webGenerating = ref(false)
+const lastSearchText = ref('')
 
 const messages = ref<ChatMessage[]>([
   {
@@ -274,19 +275,16 @@ function isReliableLocalSong(song: Song | any, keywordText: string) {
   const keyword = normalizeSearchText(keywordText)
   const compactKeyword = compactSearchText(keywordText)
   if (!keyword) return true
-
   const title = normalizeSearchText(song.title)
   const compactTitle = compactSearchText(song.title)
   const fields = getSongSearchFields(song)
   const haystack = fields.map(normalizeSearchText).join(' ')
   const compactHaystack = fields.map(compactSearchText).join(' ')
   const tokens = keyword.split(' ').filter((token) => token.length >= 2)
-
   if (title && (title === keyword || title.includes(keyword) || keyword.includes(title))) return true
   if (compactTitle && compactKeyword && (compactTitle === compactKeyword || compactTitle.includes(compactKeyword) || compactKeyword.includes(compactTitle))) return true
   if (compactHaystack.includes(compactKeyword) && compactKeyword.length >= 2) return true
   if (tokens.length && tokens.every((token) => haystack.includes(token))) return true
-
   return false
 }
 
@@ -332,85 +330,86 @@ function seedSongToCandidate(song: Song | any): WebSongCandidate {
   }
 }
 
-async function lookupWebCandidate(text: string) {
-  await streamAiMessage('正在为你搜索曲谱资源。')
-  const web = await searchWebSong(text)
+async function lookupWebCandidate(text: string, forceRefresh = false) {
+  lastSearchText.value = text
+  await streamAiMessage(forceRefresh ? '正在重新搜索最新曲谱资源。' : '正在为你搜索曲谱资源。')
+  const web = await searchWebSong(text, { forceRefresh })
   const candidates = web.candidates || []
-
   if (!candidates.length) {
     await streamAiMessage('暂未找到匹配资源。可以补充歌手名后再试，或使用 AI 编配。')
     return
   }
-
   webCandidates.value = candidates
   webCandidate.value = null
   webResultLabel.value = web.tabSearchEnabled ? '曲谱搜索结果' : '歌曲搜索结果'
-  await streamAiMessage(`已找到 ${candidates.length} 个相关结果。你可以查看资源、导入文本谱或使用 AI 编配。`)
-  nextTick(() => {
-    scrollTop.value += 560
-  })
+  const first = candidates[0]
+  const refs = first.tabReferences || first.references || []
+  const previewCount = refs.filter((item: any) => item.previewable).length
+  const importCount = refs.filter((item: any) => item.importable).length
+  await streamAiMessage(`已找到 ${refs.length || candidates.length} 条相关结果：${previewCount} 条图片谱、${importCount} 条可转谱资源。`)
+  nextTick(() => { scrollTop.value += 560 })
 }
 
-async function lookupTabCandidate(text: string) {
-  await streamAiMessage('正在搜索吉他谱、和弦谱和图片谱资源。')
-  const web = await searchWebTabs(text)
+async function lookupTabCandidate(text: string, forceRefresh = false) {
+  lastSearchText.value = text
+  await streamAiMessage(forceRefresh ? '正在绕开缓存重新搜索曲谱资源。' : '正在搜索吉他谱、和弦谱和图片谱资源。')
+  const web = await searchWebTabs(text, { forceRefresh })
   const candidates = web.candidates || []
-
   if (!candidates.length) {
     await streamAiMessage('暂未找到匹配曲谱资源。可以补充歌手名后再试。')
     return
   }
-
   webCandidates.value = candidates
   webCandidate.value = null
-  webResultLabel.value = '吉他谱资源'
-  await streamAiMessage(`已找到 ${candidates[0]?.tabReferences?.length || candidates.length} 条曲谱资源。可查看图片谱或导入文本谱。`)
-  nextTick(() => {
-    scrollTop.value += 560
-  })
+  webResultLabel.value = forceRefresh ? '最新曲谱资源' : '吉他谱资源'
+  const refs = candidates[0]?.tabReferences || candidates[0]?.references || []
+  const previewCount = refs.filter((item: any) => item.previewable).length
+  const importCount = refs.filter((item: any) => item.importable).length
+  await streamAiMessage(`已找到 ${refs.length || candidates.length} 条曲谱资源：${previewCount} 条可预览、${importCount} 条可转谱。`)
+  nextTick(() => { scrollTop.value += 560 })
+}
+
+async function refreshLastSearch() {
+  const text = lastSearchText.value || inputText.value.trim()
+  if (!text || loading.value || webGenerating.value) {
+    focusInput()
+    return
+  }
+  resetSearchState()
+  loading.value = true
+  try {
+    await lookupTabCandidate(text, true)
+  } catch (error: any) {
+    await streamAiMessage(error?.message || '重新搜索失败，请稍后再试。')
+  } finally {
+    loading.value = false
+  }
 }
 
 async function selectWebCandidate(candidate: WebSongCandidate) {
   webCandidate.value = candidate
   await streamAiMessage(`已选择《${candidate.title}》${candidate.artist ? ` - ${candidate.artist}` : ''}。可以查看资源，也可以使用 AI 编配生成练习版。`)
-  nextTick(() => {
-    scrollTop.value += 420
-  })
+  nextTick(() => { scrollTop.value += 420 })
 }
 
 function backToSearchResults() {
   webCandidate.value = null
-  nextTick(() => {
-    scrollTop.value += 320
-  })
+  nextTick(() => { scrollTop.value += 320 })
 }
 
 async function generateFromWebCandidate() {
   if (!webCandidate.value || webGenerating.value) return
-
   webGenerating.value = true
   try {
     await ensureLogin()
     const candidate = webCandidate.value
-    const result = await createWebChords({
-      title: candidate.title,
-      artist: candidate.artist,
-      key: 'C',
-      difficulty: '新手',
-      web_context: candidate,
-    })
-
+    const result = await createWebChords({ title: candidate.title, artist: candidate.artist, key: 'C', difficulty: '新手', web_context: candidate })
     if (!result.songId) {
       await streamAiMessage('编配已完成，但未返回曲谱编号。请稍后重试。')
       return
     }
-
     await streamAiMessage(`已生成《${result.title}》AI 编配练习版。`)
-    lastResult.value = {
-      songId: result.songId,
-      title: result.title,
-      chords: normalizeChords(result),
-    }
+    lastResult.value = { songId: result.songId, title: result.title, chords: normalizeChords(result) }
     webCandidate.value = null
     webCandidates.value = []
   } catch (error: any) {
@@ -423,29 +422,25 @@ async function generateFromWebCandidate() {
 async function sendMessage() {
   const text = inputText.value.trim()
   if (!text || loading.value || webGenerating.value) return
-
   inputText.value = ''
   resetSearchState()
   pushMessage('user', text)
   loading.value = true
-
   try {
     const route = detectRoute(text)
-
     if (route === 'search' || route === 'practice') {
       saveRecentSearch(text)
+      lastSearchText.value = text
       if (isTabSearchIntent(text)) {
         await lookupTabCandidate(text)
         return
       }
-
       const result = await searchSongs({ keyword: text, page_size: 8 })
       const reliableItems = getReliableLocalSongs(result.items, text)
       if (!reliableItems.length) {
         await lookupWebCandidate(text)
         return
       }
-
       const first = reliableItems[0] as Song | any
       if (first.has_tab === false || first.source_type === 'seed' || first.source_type === 'seed_bulk') {
         webCandidates.value = reliableItems
@@ -454,38 +449,24 @@ async function sendMessage() {
         webCandidate.value = null
         webResultLabel.value = '热门歌曲索引'
         await streamAiMessage(`已匹配 ${webCandidates.value.length} 个热门歌曲结果。可以查看曲谱资源或使用 AI 编配。`)
-        nextTick(() => {
-          scrollTop.value += 560
-        })
+        nextTick(() => { scrollTop.value += 560 })
         return
       }
-
       await streamAiMessage(`找到 ${reliableItems.length} 首相关曲谱。最匹配的是《${first.title}》，可以打开查看或开始练习。`)
-      lastResult.value = {
-        songId: first.id,
-        title: first.title,
-        chords: `${first.song_key || 'C'}调 · ${first.difficulty || '新手'} · ${first.favorite_count || 0} 收藏`,
-      }
+      lastResult.value = { songId: first.id, title: first.title, chords: `${first.song_key || 'C'}调 · ${first.difficulty || '新手'} · ${first.favorite_count || 0} 收藏` }
       if (route === 'practice') startPractice(first.id)
       return
     }
-
     await ensureLogin()
     const result = route === 'chord'
       ? await createChords({ lyrics: text, key: 'C', difficulty: '新手', rhythm: 'auto' })
       : await createSongwriting({ prompt: text, style: '民谣', difficulty: '新手', key: 'C', language: '中文' })
-
     if (!result.songId) {
       await streamAiMessage('生成已完成，但未返回曲谱编号。请稍后重试。')
       return
     }
-
     await streamAiMessage(`已生成《${result.title}》。和弦走向：${normalizeChords(result)}。`)
-    lastResult.value = {
-      songId: result.songId,
-      title: result.title,
-      chords: normalizeChords(result),
-    }
+    lastResult.value = { songId: result.songId, title: result.title, chords: normalizeChords(result) }
   } catch (error: any) {
     await streamAiMessage(error?.message || '服务暂时不可用，请稍后再试。')
   } finally {
@@ -507,43 +488,13 @@ function saveResult() {
   uni.showToast({ title: '已保存到我的作品', icon: 'success' })
 }
 
-function openRecord() {
-  uni.navigateTo({ url: '/pages/record/index' })
-}
-
-function goMain(url: string) {
-  pageLeaving.value = true
-  setTimeout(() => {
-    uni.reLaunch({ url })
-  }, 120)
-}
-
-function handleTabChange(value: string) {
-  if (value === 'chat') return
-  if (value === 'tuner') goMain('/pages/community/index')
-  if (value === 'mine') goMain('/pages/mine/index')
-}
+function openRecord() { uni.navigateTo({ url: '/pages/record/index' }) }
+function goMain(url: string) { pageLeaving.value = true; setTimeout(() => { uni.reLaunch({ url }) }, 120) }
+function handleTabChange(value: string) { if (value === 'chat') return; if (value === 'tuner') goMain('/pages/community/index'); if (value === 'mine') goMain('/pages/mine/index') }
 </script>
 
 <style scoped>
-.page {
-  --page-bg: #F6FBF8;
-  --card-bg: rgba(255, 255, 255, 0.96);
-  --control-bg: rgba(255, 255, 255, 0.94);
-  --line-soft: #E8EFEA;
-  --text-main: #17231E;
-  --text-strong: #101821;
-  --brand: #0BA45A;
-  --brand-bright: #0BB861;
-  --skeleton-bg: #EAF1ED;
-  min-height: 100vh;
-  width: 750rpx;
-  background: var(--page-bg);
-  padding-bottom: 244rpx;
-  box-sizing: border-box;
-  transition: opacity 0.16s ease, transform 0.16s ease;
-}
-
+.page { --page-bg: #F6FBF8; --card-bg: rgba(255, 255, 255, 0.96); --control-bg: rgba(255, 255, 255, 0.94); --line-soft: #E8EFEA; --text-main: #17231E; --text-strong: #101821; --brand: #0BA45A; --brand-bright: #0BB861; --skeleton-bg: #EAF1ED; min-height: 100vh; width: 750rpx; background: var(--page-bg); padding-bottom: 244rpx; box-sizing: border-box; transition: opacity 0.16s ease, transform 0.16s ease; }
 .page--leaving { opacity: 0; transform: translateY(12rpx) scale(0.992); }
 .content { height: calc(100vh - 244rpx); box-sizing: border-box; }
 .page-content { animation: contentIn 0.32s ease both; }
@@ -572,22 +523,8 @@ function handleTabChange(value: string) {
 .music-tool { font-size: 34rpx; color: var(--text-strong); }
 .send-btn { width: 104rpx; height: 72rpx; border-radius: 999rpx; background: linear-gradient(135deg, var(--brand-bright) 0%, var(--brand) 100%); color: #FFFFFF; font-size: 27rpx; font-weight: 800; display: flex; align-items: center; justify-content: center; box-shadow: 0 14rpx 26rpx rgba(16, 177, 90, 0.2); flex-shrink: 0; }
 .send-btn.loading { opacity: .72; }
-
 @keyframes contentIn { from { opacity: 0; transform: translateY(20rpx); } to { opacity: 1; transform: translateY(0); } }
 @keyframes shimmer { from { transform: translateX(0); } to { transform: translateX(280%); } }
 @keyframes typing { 0%, 80%, 100% { opacity: .34; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-5rpx); } }
-
-@media (prefers-color-scheme: dark) {
-  .page {
-    --page-bg: #0F1512;
-    --card-bg: rgba(24, 31, 27, 0.96);
-    --control-bg: rgba(24, 31, 27, 0.94);
-    --line-soft: rgba(255, 255, 255, 0.1);
-    --text-main: #F4F7F5;
-    --text-strong: #FFFFFF;
-    --brand: #32D579;
-    --brand-bright: #43E58B;
-    --skeleton-bg: #1C2620;
-  }
-}
+@media (prefers-color-scheme: dark) { .page { --page-bg: #0F1512; --card-bg: rgba(24, 31, 27, 0.96); --control-bg: rgba(24, 31, 27, 0.94); --line-soft: rgba(255, 255, 255, 0.1); --text-main: #F4F7F5; --text-strong: #FFFFFF; --brand: #32D579; --brand-bright: #43E58B; --skeleton-bg: #1C2620; } }
 </style>
