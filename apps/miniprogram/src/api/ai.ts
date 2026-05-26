@@ -18,12 +18,15 @@ export interface ChordsPayload {
   rhythm: string
 }
 
+export type TabOutputType = 'txt' | 'image'
+
 export interface WebChordsPayload {
   title: string
   artist?: string
   key: string
   difficulty: string
   web_context: WebSongCandidate
+  output_type?: TabOutputType
 }
 
 function normalize(result: any): AiSongResult {
@@ -88,6 +91,8 @@ export async function createWebChords(payload: WebChordsPayload) {
     artist: payload.artist || '',
     song_key: payload.key,
     difficulty: payload.difficulty,
+    tab_output_type: payload.output_type || 'txt',
+    output_type: payload.output_type || 'txt',
     web_context: payload.web_context,
   })
   syncQuotaFromResult(result)
