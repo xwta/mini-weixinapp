@@ -15,9 +15,9 @@
         :key="`${ref.url}-${index}`"
         class="ref-preview-item"
       >
-        <image v-if="ref.thumbnail_url" class="ref-thumb" :src="ref.thumbnail_url" mode="aspectFill" @tap="openImageResource(ref)" />
-        <view v-else class="ref-thumb ref-thumb--empty" @tap="importTextResource(ref)">谱</view>
-        <view class="ref-main" @tap="importTextResource(ref)">
+        <image v-if="ref.thumbnail_url" class="ref-thumb" :src="ref.thumbnail_url" mode="aspectFill" @tap="handlePrimaryTap(ref)" />
+        <view v-else class="ref-thumb ref-thumb--empty" @tap="handlePrimaryTap(ref)">谱</view>
+        <view class="ref-main" @tap="handlePrimaryTap(ref)">
           <view class="ref-title-row">
             <text class="ref-title">{{ ref.title }}</text>
             <text class="type-pill" :class="`type-pill--${getRefType(ref)}`">{{ getRefTypeLabel(ref) }}</text>
@@ -29,8 +29,8 @@
           </view>
         </view>
         <view class="button-col">
-          <view class="open-btn" @tap.stop="openImageResource(ref)">{{ openingUrl === getResourceKey(ref) ? '打开中' : '看图' }}</view>
-          <view class="import-btn" @tap.stop="importTextResource(ref)">{{ importingUrl === getResourceKey(ref) ? '导入中' : '导入' }}</view>
+          <view v-if="FEATURES.ENABLE_IMAGE_PREVIEW" class="open-btn" @tap.stop="openImageResource(ref)">{{ openingUrl === getResourceKey(ref) ? '打开中' : '看图' }}</view>
+          <view v-if="FEATURES.ENABLE_TEXT_IMPORT" class="import-btn" @tap.stop="importTextResource(ref)">{{ importingUrl === getResourceKey(ref) ? '导入中' : '导入' }}</view>
         </view>
       </view>
     </view>
@@ -55,11 +55,11 @@
       </view>
     </view>
 
-    <view class="notice">看图可预览图片谱；导入会解析文本谱并生成应用内曲谱详情。</view>
+    <view class="notice">{{ noticeText }}</view>
 
     <view class="actions">
       <view class="ghost-btn" @tap="emit('searchAgain')">重新搜索</view>
-      <view class="ghost-btn ghost-btn--ai" @tap="emit('select', candidates[0])">AI编配</view>
+      <view v-if="FEATURES.ENABLE_AI_GENERATE" class="ghost-btn ghost-btn--ai" @tap="emit('select', candidates[0])">AI编配</view>
     </view>
   </view>
 </template>
@@ -68,6 +68,7 @@
 import { computed, ref } from 'vue'
 import { previewResourceImage } from '@/api/resourcePreview'
 import { importResourceTab } from '@/api/resourceTabImport'
+import { FEATURES } from '@/config/features'
 import { saveRecentImport } from '@/utils/recent'
 import type { ResourcePreviewResult } from '@/api/resourcePreview'
 import type { WebSearchReference, WebSongCandidate } from '@/api/webSearch'
@@ -93,6 +94,13 @@ const topReferences = computed(() => {
 })
 
 const primaryCandidate = computed(() => props.candidates[0])
+
+const noticeText = computed(() => {
+  if (FEATURES.ENABLE_IMAGE_PREVIEW && FEATURES.ENABLE_TEXT_IMPORT) return '看图可预览图片谱；导入会解析文本谱并生成应用内曲谱详情。'
+  if (FEATURES.ENABLE_IMAGE_PREVIEW) return '可预览图片谱，也可以使用 AI 编配生成练习版。'
+  if (FEATURES.ENABLE_TEXT_IMPORT) return '可导入文本谱并生成应用内曲谱详情。'
+  return '已为你整理曲谱资源，可重新搜索或使用 AI 编配。'
+})
 
 function getConfidenceText(candidate: WebSongCandidate) {
   return `${Math.round((candidate.confidence || 0) * 100)}%`
@@ -140,7 +148,20 @@ function buildSearchQuery(ref: WebSearchReference) {
   return parts || ref.title || candidate?.title || ''
 }
 
+function handlePrimaryTap(ref: WebSearchReference) {
+  if (FEATURES.ENABLE_TEXT_IMPORT) {
+    importTextResource(ref)
+    return
+  }
+  if (FEATURES.ENABLE_IMAGE_PREVIEW) {
+    openImageResource(ref)
+    return
+  }
+  if (FEATURES.ENABLE_AI_GENERATE) emit('select', primaryCandidate.value)
+}
+
 async function openImageResource(ref: WebSearchReference) {
+  if (!FEATURES.ENABLE_IMAGE_PREVIEW) return
   const key = getResourceKey(ref)
   if (!key) {
     uni.showToast({ title: '资源链接为空', icon: 'none' })
@@ -171,6 +192,7 @@ async function openImageResource(ref: WebSearchReference) {
 }
 
 async function importTextResource(ref: WebSearchReference) {
+  if (!FEATURES.ENABLE_TEXT_IMPORT) return
   const key = getResourceKey(ref)
   if (!key) {
     uni.showToast({ title: '资源链接为空', icon: 'none' })
