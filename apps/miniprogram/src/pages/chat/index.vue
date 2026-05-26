@@ -75,14 +75,14 @@
           confirm-type="send"
           :disabled="loading || webGenerating"
           :focus="inputFocus"
-          :placeholder="loading || webGenerating ? '谱灵正在拨弦思考...' : placeholder"
+          :placeholder="loading || webGenerating ? '谱灵正在处理曲谱...' : placeholder"
           @confirm="sendMessage"
           @blur="inputFocus = false"
         />
         <view class="tool-btn" @tap="showToolTip('附件')">📎</view>
         <view class="tool-btn music-tool" @tap="selectMode('chord')">♪</view>
       </view>
-      <view :class="['send-btn', (loading || webGenerating) && 'loading']" @tap="sendMessage">{{ loading || webGenerating ? '生成中' : '发送' }}</view>
+      <view :class="['send-btn', (loading || webGenerating) && 'loading']" @tap="sendMessage">{{ loading || webGenerating ? '处理中' : '发送' }}</view>
     </view>
 
     <AppBottomTab active="chat" @change="handleTabChange" />
@@ -127,26 +127,26 @@ const booting = ref(true)
 const pageLeaving = ref(false)
 const scrollTop = ref(0)
 const inputFocus = ref(false)
-const placeholder = ref('输入你的音乐灵感...')
+const placeholder = ref('输入歌名、歌手或创作灵感')
 const lastResult = ref<ResultCardState | null>(null)
 const webCandidates = ref<WebSongCandidate[]>([])
 const webCandidate = ref<WebSongCandidate | null>(null)
-const webResultLabel = ref('网络搜索结果')
+const webResultLabel = ref('曲谱搜索结果')
 const webGenerating = ref(false)
 
 const messages = ref<ChatMessage[]>([
   {
     id: 'welcome',
     role: 'ai',
-    content: '今天想玩什么？可以写歌、搜谱、配和弦，也可以让我带你练。',
+    content: '欢迎使用谱灵 AI。你可以搜索曲谱、导入文本谱、预览图片谱，也可以进行 AI 编配与练习。',
   },
 ])
 
 const modeItems = [
-  { icon: '♪', label: 'AI写歌', value: 'song', badge: '最近生成', desc: '一句灵感，写成一首歌', statusIcon: '♫', statusText: '盛夏晚风' },
-  { icon: '⌕', label: '搜谱', value: 'search', badge: '热门', desc: '搜索你想弹的歌曲', statusIcon: '🔥', statusText: '10w+人在搜' },
-  { icon: '♬', label: '配和弦', value: 'chord', badge: '最近', desc: '为旋律智能匹配和弦', statusIcon: '♬', statusText: 'C G Am F' },
-  { icon: '▶', label: '练习', value: 'practice', badge: '今日', desc: '跟着谱练，快速提升', statusIcon: '◷', statusText: '12 分钟' },
+  { icon: '♪', label: 'AI写歌', value: 'song', badge: '创作', desc: '输入灵感，生成歌词与和弦', statusIcon: '♫', statusText: '快速生成' },
+  { icon: '⌕', label: '搜谱', value: 'search', badge: '热门', desc: '搜索歌曲曲谱资源', statusIcon: '🔥', statusText: '曲谱检索' },
+  { icon: '♬', label: '配和弦', value: 'chord', badge: '智能', desc: '为歌词智能匹配和弦', statusIcon: '♬', statusText: 'C G Am F' },
+  { icon: '▶', label: '练习', value: 'practice', badge: '今日', desc: '打开曲谱开始练习', statusIcon: '◷', statusText: '12 分钟' },
 ]
 
 onMounted(() => {
@@ -158,10 +158,10 @@ onMounted(() => {
 function selectMode(value: string) {
   activeMode.value = value as ModeValue
   const prompts: Record<ModeValue, string> = {
-    song: '比如：写一首毕业民谣，C调，新手能弹',
-    search: '比如：晴天吉他谱 / 成都弹唱谱 / 海阔天空和弦谱',
-    chord: '粘贴歌词，我来自动配和弦',
-    practice: '输入歌名，我帮你找谱开始练',
+    song: '输入一句灵感，生成歌词与和弦',
+    search: '输入歌名或歌手搜索曲谱',
+    chord: '粘贴歌词，智能匹配和弦',
+    practice: '输入歌名，打开曲谱开始练习',
   }
   placeholder.value = prompts[activeMode.value]
   inputFocus.value = true
@@ -174,16 +174,16 @@ function fillPrompt(prompt: string) {
 }
 
 function focusInput() {
-  placeholder.value = '换个歌名、歌手或“歌名+吉他谱”再搜一次'
+  placeholder.value = '输入歌名、歌手或曲谱关键词继续搜索'
   inputFocus.value = true
 }
 
 function showToolTip(name: string) {
-  uni.showToast({ title: `${name}功能待接入`, icon: 'none' })
+  uni.showToast({ title: `${name}功能即将开放`, icon: 'none' })
 }
 
 function fillVoiceHint() {
-  uni.showToast({ title: '语音输入待接入', icon: 'none' })
+  uni.showToast({ title: '语音输入即将开放', icon: 'none' })
 }
 
 function pushMessage(role: 'ai' | 'user', content: string) {
@@ -314,7 +314,7 @@ function seedSongToCandidate(song: Song | any): WebSongCandidate {
     album: song.album || '',
     confidence: Math.min(0.92, Math.max(0.62, Number(song._search_score || 78) / 100)),
     source: song.source_type || 'seed',
-    summary: `热门曲库已识别《${song.title || '这首歌'}》${song.artist_name ? ` - ${song.artist_name}` : ''}，暂无完整曲谱，可生成 AI 简化弹唱编配版。`,
+    summary: `热门曲库已识别《${song.title || '这首歌'}》${song.artist_name ? ` - ${song.artist_name}` : ''}，可查看曲谱资源或使用 AI 编配生成练习版。`,
     references: song.generation_source?.references || [],
     tabReferences: song.generation_source?.tabReferences || [],
     arrangementHints: song.generation_source?.arrangementHints || song.content_json?.arrangementHints || {},
@@ -322,38 +322,38 @@ function seedSongToCandidate(song: Song | any): WebSongCandidate {
 }
 
 async function lookupWebCandidate(text: string) {
-  await streamAiMessage('本地曲库没有可靠命中，我先把网络搜索结果列出来，你确认是哪一首。')
+  await streamAiMessage('正在为你搜索曲谱资源。')
   const web = await searchWebSong(text)
   const candidates = web.candidates || []
 
   if (!candidates.length) {
-    await streamAiMessage('网络里也没找到足够明确的歌曲信息。你可以补充歌手名，或者切到 AI 写歌让我自由创作。')
+    await streamAiMessage('暂未找到匹配资源。可以补充歌手名后再试，或使用 AI 编配。')
     return
   }
 
   webCandidates.value = candidates
   webCandidate.value = null
-  webResultLabel.value = web.tabSearchEnabled ? '网络搜索结果 · 含谱线索' : '网络搜索结果'
-  await streamAiMessage(`我找到了 ${candidates.length} 个可能结果。先选择歌曲，确认后再生成 AI 简化弹唱版。`)
+  webResultLabel.value = web.tabSearchEnabled ? '曲谱搜索结果' : '歌曲搜索结果'
+  await streamAiMessage(`已找到 ${candidates.length} 个相关结果。你可以查看资源、导入文本谱或使用 AI 编配。`)
   nextTick(() => {
     scrollTop.value += 560
   })
 }
 
 async function lookupTabCandidate(text: string) {
-  await streamAiMessage('我先直接搜索网络吉他谱/和弦谱线索，不走本地曲库。')
+  await streamAiMessage('正在搜索吉他谱、和弦谱和图片谱资源。')
   const web = await searchWebTabs(text)
   const candidates = web.candidates || []
 
   if (!candidates.length) {
-    await streamAiMessage('暂时没有找到可用的吉他谱搜索线索。你可以试试“歌名 + 歌手 + 吉他谱”。')
+    await streamAiMessage('暂未找到匹配曲谱资源。可以补充歌手名后再试。')
     return
   }
 
   webCandidates.value = candidates
   webCandidate.value = null
-  webResultLabel.value = '网络吉他谱搜索线索'
-  await streamAiMessage(`已找到 ${candidates[0]?.tabReferences?.length || candidates.length} 条谱源线索。先选择确认，再生成 AI 简化弹唱版。`)
+  webResultLabel.value = '吉他谱资源'
+  await streamAiMessage(`已找到 ${candidates[0]?.tabReferences?.length || candidates.length} 条曲谱资源。可查看图片谱或导入文本谱。`)
   nextTick(() => {
     scrollTop.value += 560
   })
@@ -361,7 +361,7 @@ async function lookupTabCandidate(text: string) {
 
 async function selectWebCandidate(candidate: WebSongCandidate) {
   webCandidate.value = candidate
-  await streamAiMessage(`已选择《${candidate.title}》${candidate.artist ? ` - ${candidate.artist}` : ''}。确认无误后，再点 AI 生成吉他谱。`)
+  await streamAiMessage(`已选择《${candidate.title}》${candidate.artist ? ` - ${candidate.artist}` : ''}。可以查看资源，也可以使用 AI 编配生成练习版。`)
   nextTick(() => {
     scrollTop.value += 420
   })
@@ -390,11 +390,11 @@ async function generateFromWebCandidate() {
     })
 
     if (!result.songId) {
-      await streamAiMessage('生成完成，但没有拿到曲谱 ID。请稍后重试一次。')
+      await streamAiMessage('编配已完成，但未返回曲谱编号。请稍后重试。')
       return
     }
 
-    await streamAiMessage(`已生成《${result.title}》。这是 AI 简化弹唱编配版，适合先练起来。`)
+    await streamAiMessage(`已生成《${result.title}》AI 编配练习版。`)
     lastResult.value = {
       songId: result.songId,
       title: result.title,
@@ -403,7 +403,7 @@ async function generateFromWebCandidate() {
     webCandidate.value = null
     webCandidates.value = []
   } catch (error: any) {
-    await streamAiMessage(error?.message || '网络灵感和琴弦没对上，请稍后再试。')
+    await streamAiMessage(error?.message || '编配服务暂时不可用，请稍后再试。')
   } finally {
     webGenerating.value = false
   }
@@ -440,15 +440,15 @@ async function sendMessage() {
           .filter((item: any) => item.has_tab === false || item.source_type === 'seed' || item.source_type === 'seed_bulk')
           .map(seedSongToCandidate)
         webCandidate.value = null
-        webResultLabel.value = '本地热门歌曲索引'
-        await streamAiMessage(`本地热门索引里找到了 ${webCandidates.value.length} 个可能结果。先选择歌曲，确认后再生成 AI 简化弹唱版。`)
+        webResultLabel.value = '热门歌曲索引'
+        await streamAiMessage(`已匹配 ${webCandidates.value.length} 个热门歌曲结果。可以查看曲谱资源或使用 AI 编配。`)
         nextTick(() => {
           scrollTop.value += 560
         })
         return
       }
 
-      await streamAiMessage(`找到 ${reliableItems.length} 首相关曲谱。最匹配的是《${first.title}》，可以直接打开练习。`)
+      await streamAiMessage(`找到 ${reliableItems.length} 首相关曲谱。最匹配的是《${first.title}》，可以打开查看或开始练习。`)
       lastResult.value = {
         songId: first.id,
         title: first.title,
@@ -464,7 +464,7 @@ async function sendMessage() {
       : await createSongwriting({ prompt: text, style: '民谣', difficulty: '新手', key: 'C', language: '中文' })
 
     if (!result.songId) {
-      await streamAiMessage('生成完成，但没有拿到曲谱 ID。请稍后重试一次。')
+      await streamAiMessage('生成已完成，但未返回曲谱编号。请稍后重试。')
       return
     }
 
@@ -475,7 +475,7 @@ async function sendMessage() {
       chords: normalizeChords(result),
     }
   } catch (error: any) {
-    await streamAiMessage(error?.message || '刚才的灵感断了根弦，请稍后再试。')
+    await streamAiMessage(error?.message || '服务暂时不可用，请稍后再试。')
   } finally {
     loading.value = false
   }
