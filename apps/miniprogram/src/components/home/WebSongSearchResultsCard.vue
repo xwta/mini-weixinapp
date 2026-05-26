@@ -4,9 +4,17 @@
       <view class="icon-box">⌕</view>
       <view class="head-main">
         <text class="eyebrow">{{ sourceLabel }}</text>
-        <text class="title">吉他谱资源</text>
+        <text class="title">找到可用曲谱资源</text>
       </view>
       <view class="count">{{ getTotalTabCount() }}条</view>
+    </view>
+
+    <view class="flow-guide">
+      <view class="guide-step active">1 选资源</view>
+      <view class="guide-line" />
+      <view class="guide-step">2 预览/转谱</view>
+      <view class="guide-line" />
+      <view class="guide-step">3 开始练习</view>
     </view>
 
     <view v-if="topReferences.length" class="ref-preview-list">
@@ -29,8 +37,8 @@
           </view>
         </view>
         <view class="button-col">
-          <view v-if="FEATURES.ENABLE_IMAGE_PREVIEW" class="open-btn" @tap.stop="openImageResource(ref)">{{ openingUrl === getResourceKey(ref) ? '打开中' : '看图' }}</view>
-          <view v-if="FEATURES.ENABLE_TEXT_IMPORT" class="import-btn" @tap.stop="importTextResource(ref)">{{ importingUrl === getResourceKey(ref) ? '导入中' : '导入' }}</view>
+          <view v-if="canPreviewImage(ref)" class="open-btn" @tap.stop="openImageResource(ref)">{{ openingUrl === getResourceKey(ref) ? '打开中' : '预览' }}</view>
+          <view v-if="canImportText(ref)" class="import-btn" @tap.stop="importTextResource(ref)">{{ importingUrl === getResourceKey(ref) ? '转谱中' : '转谱' }}</view>
         </view>
       </view>
     </view>
@@ -96,9 +104,9 @@ const topReferences = computed(() => {
 const primaryCandidate = computed(() => props.candidates[0])
 
 const noticeText = computed(() => {
-  if (FEATURES.ENABLE_IMAGE_PREVIEW && FEATURES.ENABLE_TEXT_IMPORT) return '看图可预览图片谱；导入会解析文本谱并生成应用内曲谱详情。'
-  if (FEATURES.ENABLE_IMAGE_PREVIEW) return '可预览图片谱，也可以使用 AI 编配生成练习版。'
-  if (FEATURES.ENABLE_TEXT_IMPORT) return '可导入文本谱并生成应用内曲谱详情。'
+  if (FEATURES.ENABLE_IMAGE_PREVIEW && FEATURES.ENABLE_TEXT_IMPORT) return '建议先点“预览”查看图片谱；需要应用内练习时，再点“转谱”生成曲谱详情。'
+  if (FEATURES.ENABLE_IMAGE_PREVIEW) return '点击“预览”查看图片谱，也可以使用 AI 编配生成练习版。'
+  if (FEATURES.ENABLE_TEXT_IMPORT) return '点击“转谱”可生成应用内曲谱详情。'
   return '已为你整理曲谱资源，可重新搜索或使用 AI 编配。'
 })
 
@@ -137,6 +145,14 @@ function getResourceKey(ref: WebSearchReference) {
   return ref.image_url || ref.thumbnail_url || ref.url || ref.title || ''
 }
 
+function canPreviewImage(ref: WebSearchReference) {
+  return FEATURES.ENABLE_IMAGE_PREVIEW && (getRefType(ref) === 'image' || Boolean(ref.thumbnail_url || ref.image_url))
+}
+
+function canImportText(ref: WebSearchReference) {
+  return FEATURES.ENABLE_TEXT_IMPORT && getRefType(ref) !== 'image'
+}
+
 function buildSearchQuery(ref: WebSearchReference) {
   const candidate = primaryCandidate.value
   const parts = [candidate?.title, candidate?.artist, ref.title]
@@ -149,19 +165,19 @@ function buildSearchQuery(ref: WebSearchReference) {
 }
 
 function handlePrimaryTap(ref: WebSearchReference) {
-  if (FEATURES.ENABLE_TEXT_IMPORT) {
-    importTextResource(ref)
+  if (canPreviewImage(ref)) {
+    openImageResource(ref)
     return
   }
-  if (FEATURES.ENABLE_IMAGE_PREVIEW) {
-    openImageResource(ref)
+  if (canImportText(ref)) {
+    importTextResource(ref)
     return
   }
   if (FEATURES.ENABLE_AI_GENERATE) emit('select', primaryCandidate.value)
 }
 
 async function openImageResource(ref: WebSearchReference) {
-  if (!FEATURES.ENABLE_IMAGE_PREVIEW) return
+  if (!canPreviewImage(ref)) return
   const key = getResourceKey(ref)
   if (!key) {
     uni.showToast({ title: '资源链接为空', icon: 'none' })
@@ -180,10 +196,9 @@ async function openImageResource(ref: WebSearchReference) {
     await previewFromCloudResult(result, ref)
   } catch (error: any) {
     uni.hideLoading()
-    const message = error?.message || '图片谱暂时无法打开'
     uni.showModal({
       title: '图片谱未能打开',
-      content: `${message}\n\n你可以选择“导入”生成应用内曲谱详情。`,
+      content: '当前图片源暂时不可访问。你可以换一个资源，或使用 AI 编配生成练习版。',
       showCancel: false,
     })
   } finally {
@@ -192,7 +207,7 @@ async function openImageResource(ref: WebSearchReference) {
 }
 
 async function importTextResource(ref: WebSearchReference) {
-  if (!FEATURES.ENABLE_TEXT_IMPORT) return
+  if (!canImportText(ref)) return
   const key = getResourceKey(ref)
   if (!key) {
     uni.showToast({ title: '资源链接为空', icon: 'none' })
@@ -200,7 +215,7 @@ async function importTextResource(ref: WebSearchReference) {
   }
   importingUrl.value = key
   try {
-    uni.showLoading({ title: '导入曲谱' })
+    uni.showLoading({ title: '生成谱面' })
     const candidate = primaryCandidate.value
     const result = await importResourceTab({
       title: ref.title,
@@ -216,15 +231,16 @@ async function importTextResource(ref: WebSearchReference) {
       source: result.sourceUrl || ref.source_site || ref.provider || '',
     })
     uni.hideLoading()
-    uni.showToast({ title: '曲谱已导入', icon: 'success' })
+    uni.showToast({ title: '谱面已生成', icon: 'success' })
     setTimeout(() => {
       uni.navigateTo({ url: `/pages/song-detail/index?id=${result.songId}` })
     }, 260)
-  } catch (error: any) {
+  } catch (_error: any) {
     uni.hideLoading()
     uni.showModal({
-      title: '导入未完成',
-      content: error?.message || '当前资源暂未解析出可用文本谱，你可以更换资源或查看图片谱。',
+      title: '暂未生成谱面',
+      content: '这个资源没有解析出可用文本谱。可以换一个“网页谱/文本谱”资源，或直接使用 AI 编配。',
+      confirmText: '知道了',
       showCancel: false,
     })
   } finally {
@@ -281,6 +297,10 @@ function previewByTempUrl(tempFileURL: string, sourceUrl = '') {
 .eyebrow { color: #0BA45A; font-size: 22rpx; line-height: 28rpx; font-weight: 800; }
 .title { margin-top: 6rpx; color: #17231E; font-size: 31rpx; line-height: 40rpx; font-weight: 900; }
 .count { min-width: 72rpx; height: 48rpx; padding: 0 14rpx; border-radius: 999rpx; background: #F0FBF5; color: #0BA45A; font-size: 22rpx; font-weight: 800; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.flow-guide { margin-top: 18rpx; padding: 12rpx 14rpx; border-radius: 18rpx; background: #F6FAF8; display: flex; align-items: center; }
+.guide-step { color: #7B8580; font-size: 20rpx; font-weight: 800; white-space: nowrap; }
+.guide-step.active { color: #0BA45A; }
+.guide-line { flex: 1; height: 2rpx; margin: 0 10rpx; background: #DDEAE3; }
 .ref-preview-list, .result-list { margin-top: 18rpx; }
 .ref-preview-item, .result-item { margin-top: 14rpx; padding: 14rpx; border-radius: 20rpx; background: #FAFDFB; border: 1rpx solid #E8EFEA; display: flex; align-items: center; }
 .ref-thumb { width: 92rpx; height: 92rpx; margin-right: 16rpx; border-radius: 16rpx; background: #EAF8F0; flex-shrink: 0; }
