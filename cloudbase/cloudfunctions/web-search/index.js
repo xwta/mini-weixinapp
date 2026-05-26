@@ -5,13 +5,14 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const cacheCollection = db.collection('web_search_cache')
 
-// v7 目标：优先保证 3 秒内返回资源，避免云函数 10 秒硬超时。
-// 深度探针已下放到后续转谱函数，搜索函数只负责“快、稳、可分流”。
-const REQUEST_TIMEOUT_MS = 1800
-const MAX_HTML_LENGTH = 320 * 1024
-const MAX_REFERENCES = 14
+// v8：快速优先 + 曲谱站适配器。
+// 搜索阶段只负责稳定返回资源，转谱阶段再做深度正文解析。
+const REQUEST_TIMEOUT_MS = 1700
+const SITE_TIMEOUT_MS = 1300
+const MAX_HTML_LENGTH = 300 * 1024
+const MAX_REFERENCES = 16
 const CACHE_TTL_MS = 8 * 60 * 60 * 1000
-const CACHE_VERSION = 'v7-fast-first'
+const CACHE_VERSION = 'v8-site-adapters'
 const USER_AGENT = process.env.WEB_SEARCH_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
 
 const memoryCache = new Map()
@@ -29,6 +30,41 @@ const KNOWN_ARTISTS = {
 const TRUSTED_TAB_DOMAINS = [
   '52cmajor.com', 'iloveguitar.cn', 'jita5.com', 'jitabang.com', '17jita.com', 'qupu123.com',
   'jitatang.com', 'jita123.com', 'cangqiang.com', 'tan8.com', 'ultimate-guitar.com', 'e-chords.com', 'chordify.net',
+]
+
+const DIRECT_SITE_ADAPTERS = [
+  {
+    name: '52cmajor',
+    host: '52cmajor.com',
+    urls: (q) => [
+      `https://www.52cmajor.com/search?keyword=${encodeURIComponent(q)}`,
+      `https://www.52cmajor.com/search/?keyword=${encodeURIComponent(q)}`,
+    ],
+  },
+  {
+    name: 'jita5',
+    host: 'jita5.com',
+    urls: (q) => [
+      `https://www.jita5.com/search/?keyword=${encodeURIComponent(q)}`,
+      `https://www.jita5.com/search.asp?keyword=${encodeURIComponent(q)}`,
+    ],
+  },
+  {
+    name: 'jitabang',
+    host: 'jitabang.com',
+    urls: (q) => [
+      `https://www.jitabang.com/search?keyword=${encodeURIComponent(q)}`,
+      `https://www.jitabang.com/search?wd=${encodeURIComponent(q)}`,
+    ],
+  },
+  {
+    name: 'qupu123',
+    host: 'qupu123.com',
+    urls: (q) => [
+      `https://www.qupu123.com/search?keyword=${encodeURIComponent(q)}`,
+      `https://www.qupu123.com/Search?keyword=${encodeURIComponent(q)}`,
+    ],
+  },
 ]
 
 const SEARCH_HOSTS = ['baidu.com', 'm.baidu.com', 'image.baidu.com', 'bing.com', 'duckduckgo.com', 'sogou.com']
@@ -75,17 +111,18 @@ function stableKey(text = '') {
   return normalizeKeyword(text).replace(/\s+/g, '').toLowerCase()
 }
 
-function safeUrl(url = '') {
+function safeUrl(url = '', baseUrl = '') {
   try {
     let raw = decodeHtml(String(url || '').trim())
-    if (!raw) return ''
-    if (raw.startsWith('//')) raw = `https:${raw}`
+    if (!raw || raw.startsWith('javascript:') || raw.startsWith('#')) return ''
     if (raw.startsWith('/l/?') || raw.includes('duckduckgo.com/l/?')) {
       const full = raw.startsWith('http') ? raw : `https://duckduckgo.com${raw}`
       const parsedDuck = new URL(full)
       const uddg = parsedDuck.searchParams.get('uddg')
       if (uddg) raw = decodeURIComponent(uddg)
     }
+    if (baseUrl && !/^https?:\/\//i.test(raw) && !raw.startsWith('//')) raw = new URL(raw, baseUrl).toString()
+    if (raw.startsWith('//')) raw = `https:${raw}`
     const parsed = new URL(raw)
     if (!['http:', 'https:'].includes(parsed.protocol)) return ''
     return parsed.toString()
@@ -110,6 +147,10 @@ function isTrustedHost(url = '') {
 function isSearchHost(url = '') {
   const host = parseHost(url)
   return SEARCH_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`))
+}
+
+function isSearchPage(url = '') {
+  return /(?:\/search(?:\/|\?|$)|search\.asp|\/so(?:\/|\?|$)|\/Search(?:\/|\?|$))/i.test(url)
 }
 
 function getMemoryCache(key) {
@@ -228,7 +269,9 @@ function buildSearchQueries(keyword = '') {
     `site:52cmajor.com ${base} 吉他谱`,
     `site:iloveguitar.cn ${base} 吉他谱`,
     `site:jita5.com ${base} 吉他谱`,
-  ].filter(Boolean))).slice(0, 7)
+    `site:jitabang.com ${base} 吉他谱`,
+    `site:qupu123.com ${base} 吉他谱`,
+  ].filter(Boolean))).slice(0, 9)
 }
 
 function getRefType(item = {}) {
@@ -249,7 +292,7 @@ function isImportableReference(ref = {}) {
   const type = getRefType(ref)
   const text = `${ref.title || ''} ${ref.snippet || ''} ${ref.url || ''}`
   if (!['text', 'web'].includes(type)) return false
-  if (isSearchHost(ref.url)) return false
+  if (isSearchHost(ref.url) || isSearchPage(ref.url)) return false
   if (BLOCKED_RE.test(text)) return false
   if (/\.(?:jpg|jpeg|png|webp|gif|pdf|mp3|mp4)(?:\?|$)/i.test(ref.url || '')) return false
   if (isTrustedHost(ref.url) && TAB_RE.test(text)) return true
@@ -269,8 +312,10 @@ function scoreReference(item = {}, query = '') {
   if (/吉他谱|和弦谱|弹唱谱|六线谱/.test(text)) score += 26
   if (/变调夹|capo|原调|选调|c调|g调|d调|和弦/.test(text)) score += 14
   if (/txt|文本|chord/.test(text)) score += 12
-  if (isTrustedHost(item.url)) score += 34
+  if (isTrustedHost(item.url)) score += 36
+  if (item.provider === 'site_adapter') score += 26
   if (isSearchHost(item.url)) score -= 26
+  if (isSearchPage(item.url)) score -= 20
   if (BLOCKED_RE.test(text)) score -= 35
   if (isImportableReference(item)) score += 20
   if (isPreviewableReference(item)) score += 12
@@ -329,11 +374,59 @@ function compactReferences(references = [], max = MAX_REFERENCES, query = '') {
       const bAction = (b.importable ? 30 : 0) + (b.previewable ? 16 : 0)
       return (bAction - aAction) || Number(b.tab_score || 0) - Number(a.tab_score || 0)
     })
-  const importable = items.filter((item) => item.importable).slice(0, 5)
+  const importable = items.filter((item) => item.importable).slice(0, 6)
   const previewable = items.filter((item) => item.previewable).slice(0, 5)
   const viewOnly = items.filter((item) => !item.importable && !item.previewable && item.result_type !== 'fallback').slice(0, Math.max(0, max - importable.length - previewable.length))
   const fallback = items.filter((item) => item.result_type === 'fallback').slice(0, Math.max(0, max - importable.length - previewable.length - viewOnly.length))
   return [...importable, ...previewable, ...viewOnly, ...fallback].slice(0, max)
+}
+
+function parseAnchors(html = '', baseUrl = '', query = '', provider = 'site_adapter') {
+  const rows = []
+  const anchorRe = /<a\s+[^>]*href=(['"])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi
+  let match
+  while ((match = anchorRe.exec(html)) && rows.length < 24) {
+    const url = safeUrl(match[2], baseUrl)
+    const title = stripHtml(match[3])
+    if (!url || !title || title.length < 2) continue
+    if (isSearchHost(url) || isSearchPage(url)) continue
+    const combined = `${title} ${url}`
+    const compactQuery = stableKey(query)
+    const compactTitle = stableKey(title)
+    if (!TAB_RE.test(combined) && compactQuery && !compactTitle.includes(compactQuery.slice(0, Math.min(8, compactQuery.length)))) continue
+    const ref = makeRef({
+      title,
+      url,
+      snippet: '曲谱站站内结果，优先用于转谱。',
+      provider,
+      query,
+      resultType: 'text',
+      scoreBoost: 26,
+    })
+    if (ref) rows.push(ref)
+  }
+  return compactReferences(rows, 6, query)
+}
+
+async function searchSiteAdapter(adapter, keyword = '') {
+  const { base } = buildQueryContext(keyword)
+  const urls = adapter.urls(base)
+  for (const url of urls.slice(0, 2)) {
+    try {
+      const html = await requestRaw(url, {
+        timeout: SITE_TIMEOUT_MS,
+        maxLength: 220 * 1024,
+        headers: headers({ Referer: `https://www.${adapter.host}/` }),
+      })
+      const refs = parseAnchors(html, url, base, 'site_adapter')
+        .filter((ref) => parseHost(ref.url).endsWith(adapter.host))
+        .map((ref) => ({ ...ref, source_site: adapter.host, adapter: adapter.name }))
+      if (refs.length) return refs
+    } catch (error) {
+      console.log(`site adapter failed ${adapter.name}`, error?.message || error)
+    }
+  }
+  return []
 }
 
 function getBaiduDirectUrl(block = '') {
@@ -432,7 +525,9 @@ async function searchFast(keyword = '') {
   const q2 = queries[1] || q1
   const q3 = queries[2] || q1
   const qSite = queries[4] || q1
+  const siteAdapterJobs = DIRECT_SITE_ADAPTERS.map((adapter) => safeSearch(() => searchSiteAdapter(adapter, keyword), `site adapter ${adapter.name}`, keyword))
   const jobs = [
+    ...siteAdapterJobs,
     safeSearch(() => searchBaiduWeb(q1), 'baidu web', q1),
     safeSearch(() => searchBing(q1), 'bing web', q1),
     safeSearch(() => searchDuckDuckGo(q1), 'duck web', q1),
@@ -445,17 +540,17 @@ async function searchFast(keyword = '') {
   const references = compactReferences(rawResults, MAX_REFERENCES, keyword)
   return {
     references,
-    debug: queries.map((query) => ({ query, mode: 'fast_first_no_probe', timeoutMs: REQUEST_TIMEOUT_MS, total: references.length })),
+    debug: queries.map((query) => ({ query, mode: 'fast_first_with_site_adapters', timeoutMs: REQUEST_TIMEOUT_MS, total: references.length })),
   }
 }
 
 function buildFallbackReferences(keyword = '') {
   const clean = normalizeKeyword(keyword) || keyword
   const query = `${clean} 吉他谱 和弦谱 弹唱谱 图片谱`
-  const siteRefs = TRUSTED_TAB_DOMAINS.slice(0, 5).map((domain) => makeRef({
+  const siteRefs = DIRECT_SITE_ADAPTERS.map((adapter) => makeRef({
     title: `曲谱站搜索：${clean}`,
-    url: `https://www.baidu.com/s?wd=${encodeURIComponent(`site:${domain} ${clean} 吉他谱`)}`,
-    snippet: `在 ${domain} 中继续查找《${clean}》吉他谱。`,
+    url: `https://www.baidu.com/s?wd=${encodeURIComponent(`site:${adapter.host} ${clean} 吉他谱`)}`,
+    snippet: `在 ${adapter.host} 中继续查找《${clean}》吉他谱。`,
     provider: 'trusted_site_entry',
     query,
     resultType: 'fallback',
@@ -480,6 +575,7 @@ function extractArrangementHints(references = []) {
     tabReferenceCount: references.length,
     imageReferenceCount: references.filter((item) => item.previewable).length,
     textReferenceCount: references.filter((item) => item.importable).length,
+    siteAdapterCount: references.filter((item) => item.provider === 'site_adapter').length,
     viewOnlyCount: references.filter((item) => !item.importable && !item.previewable).length,
   }
 }
@@ -495,15 +591,15 @@ function buildCandidate(keyword, references, debug = []) {
     album: '',
     duration: 0,
     confidence: references.length ? 0.88 : 0.55,
-    source: references.length ? 'fast_first_tab_search' : 'tab_resource_entry',
+    source: references.length ? 'fast_first_site_adapter_tab_search' : 'tab_resource_entry',
     summary: references.length
-      ? `已找到 ${refs.length} 条曲谱资源，其中 ${hints.imageReferenceCount || 0} 条可预览图片谱、${hints.textReferenceCount || 0} 条可转谱资源。`
+      ? `已找到 ${refs.length} 条曲谱资源，其中 ${hints.siteAdapterCount || 0} 条来自曲谱站适配器、${hints.imageReferenceCount || 0} 条可预览图片谱、${hints.textReferenceCount || 0} 条可转谱资源。`
       : '暂未命中稳定资源，可换更完整歌名或使用 AI 编配。',
     references: refs.slice(0, 8),
     tabReferences: refs,
     arrangementHints: hints,
     searchDebug: debug,
-    provider: 'fast_first_no_key',
+    provider: 'fast_first_site_adapters',
   }
 }
 
@@ -536,9 +632,9 @@ exports.main = async (event = {}) => {
       tabSearchEnabled: true,
       candidates: [candidate],
       canGenerate: true,
-      provider: 'fast_first_no_key',
+      provider: 'fast_first_site_adapters',
       cacheVersion: CACHE_VERSION,
-      notice: '已启用快速搜索模式，优先返回可查看资源，避免搜索超时。',
+      notice: '已启用曲谱站适配器，优先解析 52cmajor / jita5 / jitabang / qupu123 站内结果。',
       debug,
     }
     setMemoryCache(cacheKey, response)
@@ -546,7 +642,7 @@ exports.main = async (event = {}) => {
     return jsonResponse(0, response)
   } catch (error) {
     console.error('web-search error:', error)
-    const fallbackCandidate = buildCandidate(keyword, [], [{ error: error?.message || String(error), mode: 'fallback_fast_first' }])
+    const fallbackCandidate = buildCandidate(keyword, [], [{ error: error?.message || String(error), mode: 'fallback_site_adapter' }])
     return jsonResponse(0, {
       query: keyword,
       queryVariants: [cleanKeyword],
@@ -554,7 +650,7 @@ exports.main = async (event = {}) => {
       tabSearchEnabled: true,
       candidates: [fallbackCandidate],
       canGenerate: true,
-      provider: 'fast_first_fallback',
+      provider: 'fast_first_site_adapter_fallback',
       cacheVersion: CACHE_VERSION,
       notice: '暂未命中稳定资源，可重新搜索更完整歌名或使用 AI 编配。',
       debug: fallbackCandidate.searchDebug,
