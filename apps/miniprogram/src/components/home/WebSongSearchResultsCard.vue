@@ -14,7 +14,7 @@
         v-for="(ref, index) in topReferences"
         :key="`${ref.url}-${index}`"
         class="ref-preview-item"
-        @tap="emit('openResource', ref)"
+        @tap="openResource(ref)"
       >
         <image v-if="ref.thumbnail_url" class="ref-thumb" :src="ref.thumbnail_url" mode="aspectFill" />
         <view v-else class="ref-thumb ref-thumb--empty">谱</view>
@@ -53,7 +53,7 @@
       </view>
     </view>
 
-    <view class="notice">优先打开搜索到的网页谱 / 图片谱资源；AI 生成只作为兜底，不复制第三方完整曲谱。</view>
+    <view class="notice">点“打开”会优先预览图片谱；网页谱会复制链接，你可在浏览器或百度里打开。AI 生成只是兜底。</view>
 
     <view class="actions">
       <view class="ghost-btn" @tap="emit('searchAgain')">换个关键词</view>
@@ -76,7 +76,6 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   select: [candidate: WebSongCandidate]
   searchAgain: []
-  openResource: [resource: WebSearchReference]
 }>()
 
 const topReferences = computed(() => {
@@ -113,6 +112,38 @@ function getRefTypeLabel(ref: WebSearchReference) {
 
 function getFallbackSummary(candidate: WebSongCandidate) {
   return candidate.artist ? `识别到《${candidate.title}》 - ${candidate.artist}` : `识别到《${candidate.title}》`
+}
+
+function openResource(ref: WebSearchReference) {
+  const imageUrl = ref.image_url || ref.thumbnail_url || ''
+  const resourceUrl = ref.url || imageUrl
+  if (!resourceUrl) {
+    uni.showToast({ title: '资源链接为空', icon: 'none' })
+    return
+  }
+
+  if (getRefType(ref) === 'image' && imageUrl) {
+    uni.previewImage({
+      urls: [imageUrl],
+      current: imageUrl,
+      fail: () => copyResourceUrl(resourceUrl),
+    })
+    return
+  }
+
+  copyResourceUrl(resourceUrl)
+}
+
+function copyResourceUrl(url: string) {
+  uni.setClipboardData({
+    data: url,
+    success: () => {
+      uni.showToast({ title: '资源链接已复制', icon: 'success' })
+    },
+    fail: () => {
+      uni.showModal({ title: '资源链接', content: url, showCancel: false })
+    },
+  })
 }
 </script>
 
