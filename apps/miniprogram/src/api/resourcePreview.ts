@@ -5,6 +5,7 @@ export interface ResourcePreviewRequest {
   url?: string
   image_url?: string
   thumbnail_url?: string
+  search_query?: string
 }
 
 export interface ResourcePreviewResult {
@@ -14,6 +15,7 @@ export interface ResourcePreviewResult {
   contentType: string
   size: number
   sourceUrl: string
+  imageUrl?: string
   notice?: string
 }
 
