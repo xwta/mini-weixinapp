@@ -6,8 +6,9 @@ const db = cloud.database()
 const songs = db.collection('songs')
 const users = db.collection('users')
 
-const TIMEOUT_MS = 6000
-const MAX_TEXT_BYTES = 900 * 1024
+const TIMEOUT_MS = 6500
+const MAX_TEXT_BYTES = 2.4 * 1024 * 1024
+const MIN_PARTIAL_TEXT_BYTES = 160 * 1024
 const MAX_RAW_TEXT = 18000
 
 const CHORD_RE = /^[A-G](?:#|b)?(?:m|maj|min|dim|aug|sus|add)?(?:2|4|5|6|7|9|11|13)?(?:\/[A-G](?:#|b)?)?$/i
@@ -77,6 +78,17 @@ function requestText(url) {
     const transport = parsed.protocol === 'http:' ? require('http') : require('https')
     const chunks = []
     let total = 0
+    let settled = false
+    const finish = (value) => {
+      if (settled) return
+      settled = true
+      resolve(value)
+    }
+    const fail = (error) => {
+      if (settled) return
+      settled = true
+      reject(error)
+    }
     const req = transport.request({
       method: 'GET',
       hostname: parsed.hostname,
@@ -86,26 +98,38 @@ function requestText(url) {
       if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
         res.resume()
         const nextUrl = new URL(res.headers.location, url).toString()
-        requestText(nextUrl).then(resolve).catch(reject)
+        requestText(nextUrl).then(finish).catch(fail)
         return
       }
       if (res.statusCode < 200 || res.statusCode >= 300) {
         res.resume()
-        reject(new Error(`网页请求失败：${res.statusCode}`))
+        fail(new Error(`网页请求失败：${res.statusCode}`))
         return
       }
       res.on('data', (chunk) => {
         total += chunk.length
-        if (total > MAX_TEXT_BYTES) {
-          req.destroy(new Error('文本资源过大'))
-          return
-        }
         chunks.push(chunk)
+        if (total > MAX_TEXT_BYTES) {
+          const partial = Buffer.concat(chunks).toString('utf8')
+          if (partial.length >= MIN_PARTIAL_TEXT_BYTES) {
+            finish(partial)
+            req.destroy()
+          } else {
+            fail(new Error('当前网页内容过大，已跳过该资源'))
+            req.destroy()
+          }
+        }
       })
-      res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
+      res.on('end', () => finish(Buffer.concat(chunks).toString('utf8')))
     })
-    req.setTimeout(TIMEOUT_MS, () => req.destroy(new Error('文本资源拉取超时')))
-    req.on('error', reject)
+    req.setTimeout(TIMEOUT_MS, () => {
+      const partial = chunks.length ? Buffer.concat(chunks).toString('utf8') : ''
+      if (partial.length >= MIN_PARTIAL_TEXT_BYTES) finish(partial)
+      else req.destroy(new Error('文本资源拉取超时'))
+    })
+    req.on('error', (error) => {
+      if (!settled) fail(error)
+    })
     req.end()
   })
 }
@@ -235,10 +259,10 @@ function pickTextCandidateFromHtml(html = '') {
   const preMatches = Array.from(html.matchAll(/<(pre|textarea)[^>]*>([\s\S]*?)<\/\1>/gi)).map((m) => stripHtml(m[2]))
   candidates.push(...preMatches)
 
-  const contentBlocks = Array.from(html.matchAll(/<div[^>]+class=(['"])[^'"]*(?:content|article|tab|chord|post|main|entry)[^'"]*\1[^>]*>([\s\S]{300,120000}?)<\/div>/gi)).map((m) => stripHtml(m[2]))
+  const contentBlocks = Array.from(html.matchAll(/<div[^>]+class=(['"])[^'"]*(?:content|article|tab|chord|post|main|entry)[^'"]*\1[^>]*>([\s\S]{300,180000}?)<\/div>/gi)).map((m) => stripHtml(m[2]))
   candidates.push(...contentBlocks)
 
-  candidates.push(stripHtml(html))
+  candidates.push(stripHtml(html).slice(0, 240000))
 
   return candidates
     .map((text) => text.replace(/\n{3,}/g, '\n\n').trim())
@@ -266,7 +290,7 @@ async function searchBaiduTextPage(searchQuery = '') {
   const links = []
   const blockRegex = /<h3[^>]*>[\s\S]*?<a[^>]+href=(['"])(.*?)\1[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h3>/gi
   let match
-  while ((match = blockRegex.exec(html)) && links.length < 5) {
+  while ((match = blockRegex.exec(html)) && links.length < 6) {
     const title = stripHtml(match[3])
     const href = safeUrl(match[2])
     if (!href) continue
@@ -283,9 +307,13 @@ async function resolveTextSource(event = {}) {
 
   const url = safeUrl(event.url || '')
   if (url && !url.includes('baidu.com/s?') && !url.includes('image.baidu.com')) {
-    const html = await requestText(url)
-    const text = pickTextCandidateFromHtml(html)
-    if (textScore(text) >= 25) return { rawText: text, sourceUrl: url, pageTitle: event.title || '网络文本谱' }
+    try {
+      const html = await requestText(url)
+      const text = pickTextCandidateFromHtml(html)
+      if (textScore(text) >= 25) return { rawText: text, sourceUrl: url, pageTitle: event.title || '网络文本谱' }
+    } catch (error) {
+      console.log('direct text page skipped', error?.message || error)
+    }
   }
 
   const query = inferSearchQuery(event)
@@ -299,11 +327,11 @@ async function resolveTextSource(event = {}) {
       if (!best || score > best.score) best = { rawText: text, sourceUrl: link.url, pageTitle: link.title, score }
       if (score >= 80) break
     } catch (error) {
-      console.log('candidate text page failed', error?.message || error)
+      console.log('candidate text page skipped', error?.message || error)
     }
   }
 
-  if (!best || best.score < 25) throw new Error('没有找到可解析的TXT/网页文本谱')
+  if (!best || best.score < 25) throw new Error('没有解析出可用文本谱')
   return best
 }
 
@@ -334,7 +362,7 @@ exports.main = async (event = {}) => {
     const rawText = String(source.rawText || '').slice(0, MAX_RAW_TEXT)
     const parsed = parseRawTab(rawText)
     if (parsed.chordLineCount < 1 && parsed.chords.length < 3) {
-      return jsonResponse(422, '找到了网页，但没有解析出足够的和弦文本谱')
+      return jsonResponse(422, '当前资源没有解析出可用文本谱')
     }
 
     const meta = parseSongMeta(rawText, event)
@@ -350,13 +378,13 @@ exports.main = async (event = {}) => {
       capo: event.capo || '0品',
       difficulty: '新手',
       strumming: '',
-      tags: ['网络文本谱', 'TXT谱', '个人练习'],
+      tags: ['网络文本谱', '文本谱', '个人练习'],
       aliases: [],
       raw_text: rawText,
       content_json: {
         sections: parsed.sections,
         chords: parsed.chords,
-        practiceTips: ['先按原网页文本谱慢速对照练习', '遇到不准的和弦可手动调整', '该谱来自公开网页解析，仅供个人练习参考'],
+        practiceTips: ['先按导入谱面慢速对照练习', '遇到不准的和弦可手动调整', '该谱为公开网页文本解析结果，仅作个人练习参考'],
         sourceUrl: source.sourceUrl,
         sourceTitle: source.pageTitle,
         importNotice: '公开网页文本谱解析结果，仅供个人练习参考。',
@@ -387,10 +415,10 @@ exports.main = async (event = {}) => {
       sourceUrl: source.sourceUrl,
       sections: parsed.sections.length,
       chords: parsed.chords,
-      message: '已导入为小程序内置吉他谱详情',
+      message: '已生成应用内曲谱详情',
     })
   } catch (error) {
     console.error('resource-tab-import error:', error)
-    return jsonResponse(500, error?.message || '文本谱导入失败')
+    return jsonResponse(500, error?.message || '当前资源暂未生成谱面')
   }
 }
