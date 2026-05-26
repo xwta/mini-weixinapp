@@ -4,8 +4,8 @@ const crypto = require('crypto')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 
 const MAX_BYTES = 3 * 1024 * 1024
-const TIMEOUT_MS = 5000
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+const TIMEOUT_MS = 4200
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
 const HTML_TYPES = ['text/html', 'application/xhtml+xml']
 
 function jsonResponse(code, dataOrMessage) {
@@ -57,6 +57,23 @@ function absoluteUrl(url = '', base = '') {
   }
 }
 
+function inferImageType(buffer, contentType = '', url = '') {
+  const type = String(contentType || '').split(';')[0].toLowerCase()
+  if (ALLOWED_IMAGE_TYPES.includes(type)) return type === 'image/jpg' ? 'image/jpeg' : type
+  if (buffer?.length >= 12) {
+    if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg'
+    if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return 'image/png'
+    if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) return 'image/gif'
+    if (buffer.slice(0, 4).toString('ascii') === 'RIFF' && buffer.slice(8, 12).toString('ascii') === 'WEBP') return 'image/webp'
+  }
+  const lowerUrl = String(url || '').toLowerCase()
+  if (/\.(?:jpg|jpeg)(?:\?|$)/.test(lowerUrl)) return 'image/jpeg'
+  if (/\.png(?:\?|$)/.test(lowerUrl)) return 'image/png'
+  if (/\.webp(?:\?|$)/.test(lowerUrl)) return 'image/webp'
+  if (/\.gif(?:\?|$)/.test(lowerUrl)) return 'image/gif'
+  return type
+}
+
 function extFromType(contentType = '') {
   if (contentType.includes('png')) return 'png'
   if (contentType.includes('webp')) return 'webp'
@@ -80,56 +97,75 @@ function headers(url = '', accept = '*/*') {
 
 function requestRaw(url, accept = '*/*', maxBytes = MAX_BYTES) {
   return new Promise((resolve, reject) => {
-    const parsed = new URL(url)
-    const transport = parsed.protocol === 'http:' ? require('http') : require('https')
-    const chunks = []
-    let total = 0
-    const req = transport.request({
-      method: 'GET',
-      hostname: parsed.hostname,
-      path: `${parsed.pathname}${parsed.search}`,
-      headers: headers(url, accept),
-    }, (res) => {
-      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
-        res.resume()
-        const nextUrl = new URL(res.headers.location, url).toString()
-        requestRaw(nextUrl, accept, maxBytes).then(resolve).catch(reject)
-        return
-      }
-
-      const contentType = String(res.headers['content-type'] || '').split(';')[0].toLowerCase()
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        res.resume()
-        reject(new Error(`资源请求失败：${res.statusCode}`))
-        return
-      }
-      res.on('data', (chunk) => {
-        total += chunk.length
-        if (total > maxBytes) {
-          req.destroy(new Error('资源过大，无法在小程序内预览'))
+    let settled = false
+    let req = null
+    const finish = (value) => {
+      if (settled) return
+      settled = true
+      resolve(value)
+      if (req) req.destroy()
+    }
+    const fail = (error) => {
+      if (settled) return
+      settled = true
+      reject(error)
+      if (req) req.destroy(error)
+    }
+    try {
+      const parsed = new URL(url)
+      const transport = parsed.protocol === 'http:' ? require('http') : require('https')
+      const chunks = []
+      let total = 0
+      req = transport.request({
+        method: 'GET',
+        hostname: parsed.hostname,
+        path: `${parsed.pathname}${parsed.search}`,
+        headers: headers(url, accept),
+      }, (res) => {
+        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+          res.resume()
+          const nextUrl = new URL(res.headers.location, url).toString()
+          requestRaw(nextUrl, accept, maxBytes).then(finish).catch(fail)
           return
         }
-        chunks.push(chunk)
+        const contentType = String(res.headers['content-type'] || '').split(';')[0].toLowerCase()
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          res.resume()
+          fail(new Error(`资源请求失败：${res.statusCode}`))
+          return
+        }
+        res.on('data', (chunk) => {
+          total += chunk.length
+          if (total > maxBytes) {
+            fail(new Error('资源过大，无法在小程序内预览'))
+            return
+          }
+          chunks.push(chunk)
+        })
+        res.on('end', () => finish({ buffer: Buffer.concat(chunks), contentType }))
+        res.on('error', fail)
       })
-      res.on('end', () => resolve({ buffer: Buffer.concat(chunks), contentType }))
-    })
-    req.setTimeout(TIMEOUT_MS, () => req.destroy(new Error('资源拉取超时')))
-    req.on('error', reject)
-    req.end()
+      req.setTimeout(TIMEOUT_MS, () => fail(new Error('资源拉取超时')))
+      req.on('error', fail)
+      req.end()
+    } catch (error) {
+      fail(error)
+    }
   })
 }
 
 async function requestText(url) {
-  const { buffer, contentType } = await requestRaw(url, 'text/html,application/xhtml+xml,application/json,*/*', 1200 * 1024)
+  const { buffer, contentType } = await requestRaw(url, 'text/html,application/xhtml+xml,application/json,*/*', 900 * 1024)
   return { text: buffer.toString('utf8'), contentType }
 }
 
 async function requestImage(url) {
   const { buffer, contentType } = await requestRaw(url, 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8', MAX_BYTES)
-  if (!ALLOWED_IMAGE_TYPES.includes(contentType)) {
+  const inferredType = inferImageType(buffer, contentType, url)
+  if (!ALLOWED_IMAGE_TYPES.includes(inferredType)) {
     throw new Error('当前资源不是可预览图片')
   }
-  return { buffer, contentType, sourceUrl: url }
+  return { buffer, contentType: inferredType, sourceUrl: url }
 }
 
 function normalizeSearchQuery(text = '') {
@@ -148,7 +184,6 @@ function inferSearchQuery(event = {}) {
   if (event.search_query) return normalizeSearchQuery(event.search_query)
   const fromTitle = normalizeSearchQuery(event.title || '')
   if (fromTitle) return fromTitle
-
   const url = safeUrl(event.url || '')
   if (!url) return ''
   try {
@@ -167,6 +202,7 @@ function scoreImageCandidate(item = {}, query = '') {
   if (/吉他谱|和弦谱|弹唱谱|六线谱|图片谱|gtp|tab|chord|c调|g调/.test(text)) score += 50
   if (compact && compactText.includes(compact)) score += 25
   if (/52cmajor|iloveguitar|jita|tan8|jitabang|17jita/.test(text)) score += 12
+  if (/\.jpg|\.jpeg|\.png|\.webp/.test(text)) score += 8
   return score
 }
 
@@ -175,7 +211,7 @@ async function findBaiduImage(searchQuery = '') {
   if (!query) throw new Error('缺少图片谱搜索词')
   const fullQuery = /吉他谱|和弦谱|弹唱谱|六线谱/.test(query) ? query : `${query} 吉他谱 高清图片谱`
   const encoded = encodeURIComponent(fullQuery)
-  const url = `https://image.baidu.com/search/acjson?tn=resultjson_com&ipn=rj&word=${encoded}&queryWord=${encoded}&pn=0&rn=20&ie=utf-8&oe=utf-8`
+  const url = `https://image.baidu.com/search/acjson?tn=resultjson_com&ipn=rj&word=${encoded}&queryWord=${encoded}&pn=0&rn=18&ie=utf-8&oe=utf-8`
   const { text } = await requestText(url)
   const data = JSON.parse(text || '{}')
   const candidates = (data.data || [])
