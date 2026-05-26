@@ -4,35 +4,9 @@
       <view class="icon-box">⌕</view>
       <view class="head-main">
         <text class="eyebrow">{{ sourceLabel }}</text>
-        <text class="title">直接搜索到的吉他谱线索</text>
+        <text class="title">直接搜索到的吉他谱资源</text>
       </view>
       <view class="count">{{ getTotalTabCount() }}条</view>
-    </view>
-
-    <view class="result-list">
-      <view
-        v-for="(item, index) in candidates.slice(0, 5)"
-        :key="`${item.title}-${item.artist || ''}-${index}`"
-        class="result-item result-item--candidate"
-        @tap="emit('select', item)"
-      >
-        <view class="rank">{{ index + 1 }}</view>
-        <view class="song-main">
-          <view class="song-title-row">
-            <text class="song-title">{{ item.title }}</text>
-            <text class="score">{{ getConfidenceText(item) }}</text>
-          </view>
-          <text v-if="item.artist" class="artist">{{ item.artist }}</text>
-          <text class="summary">{{ item.summary || getFallbackSummary(item) }}</text>
-          <view class="meta-row">
-            <text class="meta-pill">{{ item.source || 'web' }}</text>
-            <text v-if="getTabCount(item)" class="meta-pill meta-pill--hot">{{ getTabCount(item) }}条谱线索</text>
-            <text v-if="getImageCount(item)" class="meta-pill meta-pill--image">{{ getImageCount(item) }}张图片谱</text>
-            <text v-if="item.album" class="meta-pill">{{ item.album }}</text>
-          </view>
-        </view>
-        <view class="choose-btn">生成</view>
-      </view>
     </view>
 
     <view v-if="topReferences.length" class="ref-preview-list">
@@ -40,7 +14,7 @@
         v-for="(ref, index) in topReferences"
         :key="`${ref.url}-${index}`"
         class="ref-preview-item"
-        @tap="emit('select', candidates[0])"
+        @tap="emit('openResource', ref)"
       >
         <image v-if="ref.thumbnail_url" class="ref-thumb" :src="ref.thumbnail_url" mode="aspectFill" />
         <view v-else class="ref-thumb ref-thumb--empty">谱</view>
@@ -55,13 +29,35 @@
             <text class="ref-score">{{ Math.round(ref.tab_score || 0) }}分</text>
           </view>
         </view>
+        <view class="open-btn">打开</view>
       </view>
     </view>
 
-    <view class="notice">展示的是公开搜索结果的标题、摘要、缩略图和来源链接，不存储第三方完整曲谱。</view>
+    <view v-else class="result-list">
+      <view
+        v-for="(item, index) in candidates.slice(0, 5)"
+        :key="`${item.title}-${item.artist || ''}-${index}`"
+        class="result-item result-item--candidate"
+        @tap="emit('select', item)"
+      >
+        <view class="rank">{{ index + 1 }}</view>
+        <view class="song-main">
+          <view class="song-title-row">
+            <text class="song-title">{{ item.title }}</text>
+            <text class="score">{{ getConfidenceText(item) }}</text>
+          </view>
+          <text v-if="item.artist" class="artist">{{ item.artist }}</text>
+          <text class="summary">{{ item.summary || getFallbackSummary(item) }}</text>
+        </view>
+        <view class="choose-btn">查看</view>
+      </view>
+    </view>
+
+    <view class="notice">优先打开搜索到的网页谱 / 图片谱资源；AI 生成只作为兜底，不复制第三方完整曲谱。</view>
 
     <view class="actions">
       <view class="ghost-btn" @tap="emit('searchAgain')">换个关键词</view>
+      <view class="ghost-btn ghost-btn--ai" @tap="emit('select', candidates[0])">AI兜底</view>
     </view>
   </view>
 </template>
@@ -80,11 +76,12 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   select: [candidate: WebSongCandidate]
   searchAgain: []
+  openResource: [resource: WebSearchReference]
 }>()
 
 const topReferences = computed(() => {
   const refs = props.candidates.flatMap((item) => item.tabReferences || item.references || [])
-  return refs.slice(0, 6)
+  return refs.slice(0, 8)
 })
 
 function getConfidenceText(candidate: WebSongCandidate) {
@@ -95,24 +92,22 @@ function getTabCount(candidate: WebSongCandidate) {
   return Number(candidate.arrangementHints?.tabReferenceCount || candidate.tabReferences?.length || 0)
 }
 
-function getImageCount(candidate: WebSongCandidate) {
-  return Number(candidate.arrangementHints?.imageReferenceCount || (candidate.tabReferences || []).filter(item => item.result_type === 'image' || item.thumbnail_url).length || 0)
-}
-
 function getTotalTabCount() {
-  return props.candidates.reduce((sum, item) => sum + getTabCount(item), 0) || props.candidates.length
+  return props.candidates.reduce((sum, item) => sum + getTabCount(item), 0) || topReferences.value.length || props.candidates.length
 }
 
 function getRefType(ref: WebSearchReference) {
   if (ref.result_type === 'image' || ref.thumbnail_url) return 'image'
   if (ref.result_type === 'text') return 'text'
+  if (ref.result_type === 'fallback') return 'fallback'
   return 'web'
 }
 
 function getRefTypeLabel(ref: WebSearchReference) {
   const type = getRefType(ref)
   if (type === 'image') return '图片谱'
-  if (type === 'text') return 'TXT/网页谱'
+  if (type === 'text') return 'TXT谱'
+  if (type === 'fallback') return '搜索入口'
   return '网页谱'
 }
 
@@ -191,136 +186,13 @@ function getFallbackSummary(candidate: WebSongCandidate) {
   box-sizing: border-box;
 }
 
+.ref-preview-list,
 .result-list {
-  margin-top: 22rpx;
-}
-
-.result-item {
-  margin-top: 14rpx;
-  padding: 18rpx;
-  border-radius: 22rpx;
-  background: #F6FBF8;
-  display: flex;
-  align-items: center;
-}
-
-.result-item--candidate {
-  border: 1rpx solid #E8EFEA;
-}
-
-.rank {
-  width: 42rpx;
-  height: 42rpx;
-  margin-right: 16rpx;
-  border-radius: 999rpx;
-  background: #EAF8F0;
-  color: #0BA45A;
-  font-size: 22rpx;
-  font-weight: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.song-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.song-title-row {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.song-title {
-  flex: 1;
-  min-width: 0;
-  color: #17231E;
-  font-size: 28rpx;
-  line-height: 36rpx;
-  font-weight: 900;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.score {
-  margin-left: 10rpx;
-  color: #0BA45A;
-  font-size: 21rpx;
-  font-weight: 800;
-  flex-shrink: 0;
-}
-
-.artist,
-.summary {
-  display: block;
-  margin-top: 6rpx;
-  color: #5F6B65;
-  font-size: 23rpx;
-  line-height: 32rpx;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.summary {
-  color: #7B8580;
-}
-
-.meta-row {
-  margin-top: 10rpx;
-  display: flex;
-  gap: 8rpx;
-  flex-wrap: wrap;
-}
-
-.meta-pill {
-  max-width: 220rpx;
-  height: 34rpx;
-  padding: 0 12rpx;
-  border-radius: 999rpx;
-  background: #FFFFFF;
-  color: #5F6B65;
-  font-size: 19rpx;
-  line-height: 34rpx;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.meta-pill--hot {
-  color: #0BA45A;
-  background: #EAF8F0;
-}
-
-.meta-pill--image {
-  color: #B66D00;
-  background: #FFF4DC;
-}
-
-.choose-btn {
-  width: 84rpx;
-  height: 52rpx;
-  margin-left: 14rpx;
-  border-radius: 999rpx;
-  background: #0BA45A;
-  color: #FFFFFF;
-  font-size: 22rpx;
-  font-weight: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.ref-preview-list {
   margin-top: 18rpx;
 }
 
-.ref-preview-item {
+.ref-preview-item,
+.result-item {
   margin-top: 14rpx;
   padding: 14rpx;
   border-radius: 20rpx;
@@ -348,18 +220,21 @@ function getFallbackSummary(candidate: WebSongCandidate) {
   justify-content: center;
 }
 
-.ref-main {
+.ref-main,
+.song-main {
   flex: 1;
   min-width: 0;
 }
 
-.ref-title-row {
+.ref-title-row,
+.song-title-row {
   display: flex;
   align-items: center;
   min-width: 0;
 }
 
-.ref-title {
+.ref-title,
+.song-title {
   flex: 1;
   min-width: 0;
   color: #17231E;
@@ -392,12 +267,15 @@ function getFallbackSummary(candidate: WebSongCandidate) {
   background: #E8F4FF;
 }
 
+.type-pill--fallback,
 .type-pill--web {
   color: #0BA45A;
   background: #EAF8F0;
 }
 
-.ref-snippet {
+.ref-snippet,
+.artist,
+.summary {
   display: block;
   margin-top: 6rpx;
   color: #7B8580;
@@ -421,6 +299,45 @@ function getFallbackSummary(candidate: WebSongCandidate) {
   line-height: 24rpx;
 }
 
+.open-btn,
+.choose-btn {
+  width: 74rpx;
+  height: 48rpx;
+  margin-left: 12rpx;
+  border-radius: 999rpx;
+  background: #0BA45A;
+  color: #FFFFFF;
+  font-size: 21rpx;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rank {
+  width: 42rpx;
+  height: 42rpx;
+  margin-right: 16rpx;
+  border-radius: 999rpx;
+  background: #EAF8F0;
+  color: #0BA45A;
+  font-size: 22rpx;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.score {
+  margin-left: 10rpx;
+  color: #0BA45A;
+  font-size: 21rpx;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
 .notice {
   margin-top: 18rpx;
   color: #A06A15;
@@ -434,6 +351,7 @@ function getFallbackSummary(candidate: WebSongCandidate) {
 .actions {
   margin-top: 22rpx;
   display: flex;
+  gap: 14rpx;
 }
 
 .ghost-btn {
@@ -448,6 +366,12 @@ function getFallbackSummary(candidate: WebSongCandidate) {
   justify-content: center;
   font-size: 25rpx;
   font-weight: 800;
+}
+
+.ghost-btn--ai {
+  color: #0BA45A;
+  background: #EAF8F0;
+  border-color: #D8F0E4;
 }
 
 @keyframes cardIn {
