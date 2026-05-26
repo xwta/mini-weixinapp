@@ -15,10 +15,10 @@
           </view>
 
           <view class="author-row">
-            <view class="author-avatar">▣</view>
-            <view class="author-info" @tap="goUserProfile">
-              <view class="author-name">{{ song.source_type === 'ai' ? '谱灵AI' : (song.artist_name || '谱灵用户') }}</view>
-              <view class="author-desc">{{ song.source_type === 'ai' ? '刚刚生成' : '用户发布' }}</view>
+            <view class="author-avatar">♪</view>
+            <view class="author-info">
+              <view class="author-name">{{ song.source_type === 'ai' || song.source_type === 'ai_web' ? '谱灵AI编配' : (song.artist_name || '练习曲谱') }}</view>
+              <view class="author-desc">仅供个人练习参考</view>
             </view>
             <view class="favorite-btn" @tap.stop="handleFavorite">
               <text class="heart">♡</text>
@@ -91,37 +91,12 @@
             </view>
           </view>
         </view>
-
-        <view class="comments-card card">
-          <view class="comments-head">
-            <view class="comments-title">评论</view>
-            <view class="comments-count">{{ comments.length }}</view>
-          </view>
-          <view class="comment-input-row">
-            <input v-model="commentText" class="comment-input" placeholder="说点关于这首谱的感受" />
-            <view class="comment-send" @tap="submitComment">发送</view>
-          </view>
-          <view v-if="comments.length" class="comment-list">
-            <view v-for="item in comments" :key="item.id" class="comment-item">
-              <view class="comment-avatar">谱</view>
-              <view class="comment-main">
-                <view class="comment-content">{{ item.content }}</view>
-                <view class="comment-meta">{{ item.like_count || 0 }} 赞</view>
-              </view>
-            </view>
-          </view>
-          <view v-else class="empty-comments">还没有评论，来当第一个拨片。</view>
-        </view>
       </view>
     </scroll-view>
 
     <EmptyState v-else icon="♪" title="曲谱加载中" desc="正在把谱子从琴盒里拿出来" />
 
     <view v-if="song" class="bottom-action-bar">
-      <view class="share-btn" @tap="shareSong">
-        <text class="share-icon">□</text>
-        <text>分享</text>
-      </view>
       <view class="practice-btn" @tap="startPractice">
         <text class="play-icon">▶</text>
         <text>开始练习</text>
@@ -137,21 +112,22 @@ import EmptyState from '../../components/EmptyState.vue'
 import { getSongDetail } from '../../api/songs'
 import { addFavorite } from '../../api/favorites'
 import { loginWithWechatProfile } from '../../api/auth'
-import { followUser, likeSong } from '../../api/social'
-import { createComment, getSongComments, type CommentItem } from '../../api/comments'
 import { useAuthStore } from '../../stores/auth'
 import type { Song, SongSection } from '../../types'
 
 const song = ref<Song | null>(null)
-const comments = ref<CommentItem[]>([])
-const commentText = ref('')
 
 const displayTitle = computed(() => {
-  const title = song.value?.title || '夏夜晚风'
+  const title = song.value?.title || '练习曲谱'
   return title.startsWith('《') ? title : `《${title}》`
 })
 
-const sourceLabel = computed(() => song.value?.source_type === 'ai' ? 'AI原创' : '用户作品')
+const sourceLabel = computed(() => {
+  if (song.value?.source_type === 'ai_web') return 'AI简化编配'
+  if (song.value?.source_type === 'ai') return 'AI原创'
+  if (song.value?.source_type === 'seed' || song.value?.source_type === 'seed_bulk') return '歌曲索引'
+  return '练习曲谱'
+})
 
 const sections = computed<SongSection[]>(() => {
   const content = song.value?.content_json
@@ -160,14 +136,8 @@ const sections = computed<SongSection[]>(() => {
     {
       name: '主歌',
       lines: [
-        { chordLine: 'C                         G', lyricLine: '夏夜的风吹过操场' },
-        { chordLine: 'Am                        F', lyricLine: '你轻轻哼着那段旧时光' },
-      ],
-    },
-    {
-      name: '副歌',
-      lines: [
-        { chordLine: 'G                         C', lyricLine: '我们把梦唱到天亮' },
+        { chordLine: 'C                         G', lyricLine: '请先生成或选择曲谱内容' },
+        { chordLine: 'Am                        F', lyricLine: '这里会显示弹唱练习谱' },
       ],
     },
   ]
@@ -176,14 +146,13 @@ const sections = computed<SongSection[]>(() => {
 const practiceTips = computed<string[]>(() => {
   const tips = song.value?.content_json?.practiceTips
   if (tips?.length) return tips
-  return ['先用 80 BPM 慢速练习主歌', '副歌注意 G 到 C 的换和弦', '适合新手扫弦节奏']
+  return ['先用 80 BPM 慢速练习主歌', '注意换和弦时手型提前准备', '适合新手从简单扫弦开始']
 })
 
 onLoad(async (query) => {
   const id = String(query?.id || '')
   if (id) {
     song.value = await getSongDetail(id)
-    comments.value = await getSongComments(id)
   }
 })
 
@@ -201,40 +170,8 @@ async function handleFavorite() {
   uni.showToast({ title: '已收藏', icon: 'success' })
 }
 
-async function handleLike() {
-  if (!song.value) return
-  await ensureLogin()
-  const res = await likeSong(song.value.id)
-  song.value.like_count = res.like_count
-  uni.showToast({ title: '已点赞', icon: 'success' })
-}
-
-async function handleFollow() {
-  if (!song.value?.user_id) return
-  await ensureLogin()
-  await followUser(song.value.user_id)
-  uni.showToast({ title: '已关注作者', icon: 'success' })
-}
-
-async function submitComment() {
-  if (!song.value || !commentText.value.trim()) return
-  await ensureLogin()
-  const comment = await createComment(song.value.id, commentText.value.trim())
-  comments.value.unshift(comment)
-  commentText.value = ''
-  uni.showToast({ title: '评论成功', icon: 'success' })
-}
-
 function goBack() {
   uni.navigateBack()
-}
-
-function goUserProfile() {
-  if (song.value?.user_id) uni.navigateTo({ url: `/pages/user-profile/index?id=${song.value.user_id}` })
-}
-
-function shareSong() {
-  uni.showToast({ title: '分享海报功能开发中', icon: 'none' })
 }
 
 function startPractice() {
@@ -572,107 +509,6 @@ function openMetronome() {
   line-height: 42rpx;
 }
 
-.comments-card {
-  margin-top: 30rpx;
-  padding: 32rpx;
-  border-radius: 30rpx;
-}
-
-.comments-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.comments-title {
-  color: #17231E;
-  font-size: 31rpx;
-  line-height: 40rpx;
-  font-weight: 900;
-}
-
-.comments-count {
-  color: #8A9490;
-  font-size: 24rpx;
-}
-
-.comment-input-row {
-  margin-top: 24rpx;
-  display: flex;
-  gap: 16rpx;
-}
-
-.comment-input {
-  flex: 1;
-  height: 72rpx;
-  border-radius: 999rpx;
-  background: #F6FAF8;
-  padding: 0 24rpx;
-  box-sizing: border-box;
-  color: #17231E;
-  font-size: 25rpx;
-}
-
-.comment-send {
-  width: 108rpx;
-  height: 72rpx;
-  border-radius: 999rpx;
-  background: #10B15A;
-  color: #FFFFFF;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 25rpx;
-  font-weight: 900;
-}
-
-.comment-list {
-  margin-top: 22rpx;
-}
-
-.comment-item {
-  display: flex;
-  gap: 16rpx;
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid #EDF3EF;
-}
-
-.comment-avatar {
-  width: 48rpx;
-  height: 48rpx;
-  border-radius: 50%;
-  background: #EAF8F0;
-  color: #10B15A;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22rpx;
-  font-weight: 900;
-  flex-shrink: 0;
-}
-
-.comment-main {
-  flex: 1;
-}
-
-.comment-content {
-  color: #17231E;
-  font-size: 26rpx;
-  line-height: 38rpx;
-}
-
-.comment-meta {
-  margin-top: 8rpx;
-  color: #8A9490;
-  font-size: 22rpx;
-}
-
-.empty-comments {
-  margin-top: 24rpx;
-  color: #8A9490;
-  font-size: 24rpx;
-}
-
 .bottom-action-bar {
   position: fixed;
   left: 0;
@@ -684,16 +520,16 @@ function openMetronome() {
   box-sizing: border-box;
   background: rgba(255, 255, 255, 0.94);
   border-top: 1rpx solid #E8EFEA;
-  display: grid;
-  grid-template-columns: 1fr 1.55fr;
-  gap: 28rpx;
   z-index: 20;
 }
 
-.share-btn,
 .practice-btn {
+  width: 686rpx;
   height: 88rpx;
   border-radius: 28rpx;
+  background: #10B15A;
+  color: #FFFFFF;
+  box-shadow: 0 14rpx 32rpx rgba(16, 177, 90, 0.22);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -703,19 +539,6 @@ function openMetronome() {
   font-weight: 900;
 }
 
-.share-btn {
-  background: #FFFFFF;
-  color: #10B15A;
-  border: 2rpx solid #10B15A;
-}
-
-.practice-btn {
-  background: #10B15A;
-  color: #FFFFFF;
-  box-shadow: 0 14rpx 32rpx rgba(16, 177, 90, 0.22);
-}
-
-.share-icon,
 .play-icon {
   font-size: 34rpx;
   font-weight: 900;
