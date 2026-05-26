@@ -10,7 +10,7 @@
     {
       "path": "pages/community/index",
       "style": {
-        "navigationBarTitleText": "社区",
+        "navigationBarTitleText": "调音器",
         "navigationStyle": "custom"
       }
     },
