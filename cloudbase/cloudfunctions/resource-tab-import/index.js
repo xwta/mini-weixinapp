@@ -6,12 +6,13 @@ const db = cloud.database()
 const songs = db.collection('songs')
 const users = db.collection('users')
 
-const TIMEOUT_MS = 5200
+const TIMEOUT_MS = 4800
 const TARGET_FETCH_BYTES = 420 * 1024
 const MAX_RAW_TEXT = 18000
 
 const CHORD_RE = /^[A-G](?:#|b)?(?:m|maj|min|dim|aug|sus|add)?(?:2|4|5|6|7|9|11|13)?(?:\/[A-G](?:#|b)?)?$/i
 const CHORD_IN_LINE_RE = /\b[A-G](?:#|b)?(?:m|maj|min|dim|aug|sus|add)?(?:2|4|5|6|7|9|11|13)?(?:\/[A-G](?:#|b)?)?\b/g
+const INLINE_CHORD_RE = /\[\s*([A-G](?:#|b)?(?:m|maj|min|dim|aug|sus|add)?(?:2|4|5|6|7|9|11|13)?(?:\/[A-G](?:#|b)?)?)\s*\]/gi
 const SECTION_RE = /^(?:\[)?\s*(前奏|主歌|副歌|间奏|尾奏|桥段|intro|verse|chorus|bridge|outro|pre-chorus|solo)\s*(?:\])?[:：]?$/i
 
 const TRUSTED_TEXT_DOMAINS = [
@@ -22,30 +23,10 @@ const TRUSTED_TEXT_DOMAINS = [
 const BLOCKED_URL_RE = /(?:image\.baidu\.com|video|shipin|download|down|app|login|user|search\/index|\/search\?|\.pdf$|\.jpg$|\.jpeg$|\.png$|\.webp$|\.gif$)/i
 
 const SITE_EXTRACTORS = [
-  {
-    name: '52cmajor',
-    match: (host) => host.endsWith('52cmajor.com'),
-    selectors: ['article', 'main', 'content', 'detail', 'pu', 'tab', 'chord', 'entry', 'post'],
-    scoreBoost: 28,
-  },
-  {
-    name: 'jita5',
-    match: (host) => host.endsWith('jita5.com'),
-    selectors: ['article', 'main', 'content', 'detail', 'pu', 'tab', 'chord', 'entry', 'post'],
-    scoreBoost: 26,
-  },
-  {
-    name: 'jitabang',
-    match: (host) => host.endsWith('jitabang.com'),
-    selectors: ['article', 'main', 'content', 'detail', 'pu', 'tab', 'chord', 'entry', 'post'],
-    scoreBoost: 26,
-  },
-  {
-    name: 'qupu123',
-    match: (host) => host.endsWith('qupu123.com'),
-    selectors: ['article', 'main', 'content', 'detail', 'pu', 'tab', 'chord', 'entry', 'post'],
-    scoreBoost: 22,
-  },
+  { name: '52cmajor', match: (host) => host.endsWith('52cmajor.com'), selectors: ['article', 'main', 'content', 'detail', 'pu', 'tab', 'chord', 'entry', 'post', 'song'], scoreBoost: 28 },
+  { name: 'jita5', match: (host) => host.endsWith('jita5.com'), selectors: ['article', 'main', 'content', 'detail', 'pu', 'tab', 'chord', 'entry', 'post', 'song'], scoreBoost: 26 },
+  { name: 'jitabang', match: (host) => host.endsWith('jitabang.com'), selectors: ['article', 'main', 'content', 'detail', 'pu', 'tab', 'chord', 'entry', 'post', 'song'], scoreBoost: 26 },
+  { name: 'qupu123', match: (host) => host.endsWith('qupu123.com'), selectors: ['article', 'main', 'content', 'detail', 'pu', 'tab', 'chord', 'entry', 'post', 'song'], scoreBoost: 22 },
 ]
 
 function jsonResponse(code, dataOrMessage) {
@@ -70,7 +51,7 @@ function stripHtml(text = '') {
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>|<\/div>|<\/li>|<\/tr>|<\/h[1-6]>|<\/section>|<\/article>/gi, '\n')
+    .replace(/<\/p>|<\/div>|<\/li>|<\/tr>|<\/h[1-6]>|<\/section>|<\/article>|<\/pre>/gi, '\n')
     .replace(/<[^>]*>/g, ' ')
     .replace(/\r/g, '')
     .replace(/[ \t]+/g, ' ')
@@ -148,11 +129,13 @@ function requestTargetSlice(url, options = {}) {
       if (settled) return
       settled = true
       resolve(value)
+      if (req) req.destroy()
     }
     const fail = (error) => {
       if (settled) return
       settled = true
       reject(error)
+      if (req) req.destroy(error)
     }
     req = transport.request({
       method: 'GET',
@@ -175,10 +158,7 @@ function requestTargetSlice(url, options = {}) {
         if (settled) return
         chunks.push(chunk)
         total += chunk.length
-        if (total >= byteLimit) {
-          finish(Buffer.concat(chunks).toString('utf8'))
-          res.destroy()
-        }
+        if (total >= byteLimit) finish(Buffer.concat(chunks).toString('utf8'))
       })
       res.on('end', () => finish(Buffer.concat(chunks).toString('utf8')))
       res.on('error', (error) => {
@@ -189,7 +169,7 @@ function requestTargetSlice(url, options = {}) {
     req.setTimeout(TIMEOUT_MS, () => {
       const partial = chunks.length ? Buffer.concat(chunks).toString('utf8') : ''
       if (partial.length >= 1000) finish(partial)
-      else req.destroy(new Error('目标资源拉取超时'))
+      else fail(new Error('目标资源拉取超时'))
     })
     req.on('error', (error) => {
       if (settled) return
@@ -234,13 +214,18 @@ function chordListFromText(text = '') {
   return Array.from(new Set((text.match(CHORD_IN_LINE_RE) || []).filter((item) => CHORD_RE.test(item)))).slice(0, 20)
 }
 
+function inlineChordCount(text = '') {
+  return Array.from(text.matchAll(INLINE_CHORD_RE)).length
+}
+
 function textScore(text = '', query = '') {
   const lines = text.split('\n').slice(0, 300)
   const chordLines = lines.filter(isChordLine).length
   const chordCount = chordListFromText(text).length
+  const inlineCount = inlineChordCount(text)
   const tabWords = /吉他谱|和弦谱|弹唱谱|变调夹|原调|选调|Capo|Key/i.test(text) ? 20 : 0
   const queryHit = compactText(query) && compactText(text).includes(compactText(query).slice(0, 12)) ? 22 : 0
-  return chordLines * 22 + chordCount * 4 + tabWords + queryHit
+  return chordLines * 22 + inlineCount * 10 + chordCount * 4 + tabWords + queryHit
 }
 
 function extractJsonLikeText(html = '') {
@@ -254,15 +239,13 @@ function extractJsonLikeText(html = '') {
 
 function extractClassBlocks(html = '', keys = []) {
   const blocks = []
-  const keyPart = keys.length ? keys.join('|') : 'content|article|tab|chord|post|main|entry|pu|info|detail'
-  const patterns = [
-    new RegExp(`<(?:(?:article)|(?:main)|(?:section)|(?:div))[^>]+(?:class|id)=(['"])[^'"]*(?:${keyPart})[^'"]*\\1[^>]*>([\\s\\S]{160,90000}?)<\\/(?:(?:article)|(?:main)|(?:section)|(?:div))>`, 'gi'),
-    new RegExp(`<pre[^>]*>([\\s\\S]{80,60000}?)<\\/pre>`, 'gi'),
-    new RegExp(`<textarea[^>]*>([\\s\\S]{80,60000}?)<\\/textarea>`, 'gi'),
-  ]
-  patterns.forEach((pattern) => {
+  const keyPart = keys.length ? keys.join('|') : 'content|article|tab|chord|post|main|entry|pu|info|detail|song'
+  const blockRe = new RegExp(`<(?:article|main|section|div)[^>]+(?:class|id)=(["'])[^"']*(?:${keyPart})[^"']*\\1[^>]*>([\\s\\S]{160,90000}?)<\/(?:article|main|section|div)>`, 'gi')
+  const preRe = /<pre[^>]*>([\s\S]{80,60000}?)<\/pre>/gi
+  const textareaRe = /<textarea[^>]*>([\s\S]{80,60000}?)<\/textarea>/gi
+  ;[blockRe, preRe, textareaRe].forEach((pattern) => {
     let match
-    while ((match = pattern.exec(html)) && blocks.length < 20) {
+    while ((match = pattern.exec(html)) && blocks.length < 24) {
       blocks.push(stripHtml(match[2] || match[1] || ''))
     }
   })
@@ -285,9 +268,7 @@ function keywordWindows(html = '', query = '') {
 function pickTextCandidateFromHtml(html = '', query = '', url = '') {
   const candidates = []
   const extractor = getSiteExtractor(url)
-  if (extractor) {
-    candidates.push(...extractClassBlocks(html, extractor.selectors).map((text) => `${text}\n`))
-  }
+  if (extractor) candidates.push(...extractClassBlocks(html, extractor.selectors))
   candidates.push(...extractClassBlocks(html))
   const jsonText = extractJsonLikeText(html)
   if (jsonText) candidates.push(jsonText.slice(0, 24000))
@@ -295,7 +276,7 @@ function pickTextCandidateFromHtml(html = '', query = '', url = '') {
   const siteBoost = extractor?.scoreBoost || 0
   return candidates
     .map((text) => text.replace(/\n{3,}/g, '\n\n').trim())
-    .filter((text) => text.length >= 120)
+    .filter((text) => text.length >= 80)
     .sort((a, b) => ((textScore(b, query) + siteBoost) - (textScore(a, query) + siteBoost)) || (b.length - a.length))[0] || ''
 }
 
@@ -321,12 +302,22 @@ function parseSongMeta(rawText = '', event = {}) {
   return { title: title || '网络吉他谱', artist_name: artist }
 }
 
+function parseInlineChordLine(line = '') {
+  const matches = Array.from(line.matchAll(INLINE_CHORD_RE))
+  if (!matches.length) return null
+  const chords = matches.map((match) => match[1]).filter(Boolean).join(' ')
+  const lyricLine = line.replace(INLINE_CHORD_RE, '').replace(/\s{2,}/g, ' ').trim()
+  if (!chords || !lyricLine) return null
+  return { chordLine: chords, lyricLine }
+}
+
 function parseRawTab(rawText = '') {
-  const source = rawText.replace(/\r/g, '').split('\n').map((line) => line.trimEnd()).filter((line) => line.trim()).slice(0, 500)
+  const source = rawText.replace(/\r/g, '').split('\n').map((line) => line.trimEnd()).filter((line) => line.trim()).slice(0, 520)
   const sections = []
   let current = { name: '正文', lines: [] }
   let pendingChord = ''
   let chordLineCount = 0
+  let inlineChordLineCount = 0
   source.forEach((line) => {
     const trimmed = line.trim()
     const sectionMatch = trimmed.match(SECTION_RE)
@@ -341,6 +332,13 @@ function parseRawTab(rawText = '') {
       chordLineCount += 1
       return
     }
+    const inline = parseInlineChordLine(trimmed)
+    if (inline) {
+      current.lines.push(inline)
+      inlineChordLineCount += 1
+      pendingChord = ''
+      return
+    }
     const looksLikeMeta = /^(歌手|曲谱|来源|原调|选调|变调夹|节拍|难度|Capo|Key|BPM)[:：]/i.test(trimmed)
     if (looksLikeMeta && current.lines.length === 0) return
     current.lines.push({ chordLine: pendingChord || '', lyricLine: trimmed })
@@ -348,7 +346,12 @@ function parseRawTab(rawText = '') {
   })
   if (current.lines.length) sections.push(current)
   const chords = chordListFromText(rawText)
-  return { sections: sections.length ? sections : [{ name: '正文', lines: [{ chordLine: '', lyricLine: rawText.slice(0, 600) || '暂无可解析文本谱' }] }], chords, chordLineCount }
+  return {
+    sections: sections.length ? sections : [{ name: '正文', lines: [{ chordLine: '', lyricLine: rawText.slice(0, 600) || '暂无可解析文本谱' }] }],
+    chords,
+    chordLineCount,
+    inlineChordLineCount,
+  }
 }
 
 async function tryExtractFromUrl(link = {}, event = {}) {
@@ -357,7 +360,7 @@ async function tryExtractFromUrl(link = {}, event = {}) {
   const html = await requestTargetSlice(link.url, { byteLimit: isSite || isTrustedDomain(link.url) ? 520 * 1024 : TARGET_FETCH_BYTES })
   const text = pickTextCandidateFromHtml(html, query || link.title, link.url)
   const score = textScore(text, query || link.title) + (isSite ? 18 : 0)
-  if (score < (isSite ? 28 : 34)) throw new Error('目标页面未命中曲谱正文')
+  if (score < (isSite ? 24 : 34)) throw new Error('目标页面未命中曲谱正文')
   return { rawText: text, sourceUrl: link.url, pageTitle: link.title || event.title || '网络文本谱', score, fetchMode: isSite ? 'site-adapter-extract' : 'strict-importable-slice' }
 }
 
@@ -387,7 +390,7 @@ exports.main = async (event = {}) => {
     const source = await resolveTextSource(event)
     const rawText = String(source.rawText || '').slice(0, MAX_RAW_TEXT)
     const parsed = parseRawTab(rawText)
-    if (parsed.chordLineCount < 1 && parsed.chords.length < 3) return jsonResponse(422, '没有命中可转谱的文本曲谱资源')
+    if (parsed.chordLineCount < 1 && parsed.inlineChordLineCount < 1 && parsed.chords.length < 3) return jsonResponse(422, '没有命中可转谱的文本曲谱资源')
     const meta = parseSongMeta(rawText, event)
     const user = await getCurrentUser(openid)
     const data = {
