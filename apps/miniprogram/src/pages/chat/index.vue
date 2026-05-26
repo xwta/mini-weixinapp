@@ -216,24 +216,16 @@ function delay(ms: number) {
 async function streamAiMessage(content: string) {
   const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`
   messages.value.push({ id, role: 'ai', content: '' })
-
   for (let index = 0; index < content.length; index += 2) {
     const target = messages.value.find(item => item.id === id)
     if (!target) return
     target.content = content.slice(0, index + 2)
-    if (index % 8 === 0) {
-      nextTick(() => {
-        scrollTop.value += 120
-      })
-    }
+    if (index % 8 === 0) nextTick(() => { scrollTop.value += 120 })
     await delay(18)
   }
-
   const target = messages.value.find(item => item.id === id)
   if (target) target.content = content
-  nextTick(() => {
-    scrollTop.value += 360
-  })
+  nextTick(() => { scrollTop.value += 360 })
 }
 
 function normalizeSearchText(text = '') {
@@ -316,6 +308,52 @@ function resetSearchState() {
   lastResult.value = null
 }
 
+function buildQuickUrl(text: string, mode: 'web' | 'image' | 'site52' | 'jita5' | 'jitabang' | 'qupu123') {
+  const queryMap = {
+    web: `${text} 吉他谱 和弦谱 弹唱谱`,
+    image: `${text} 吉他谱 图片谱`,
+    site52: `site:52cmajor.com ${text} 吉他谱`,
+    jita5: `site:jita5.com ${text} 吉他谱`,
+    jitabang: `site:jitabang.com ${text} 吉他谱`,
+    qupu123: `site:qupu123.com ${text} 吉他谱`,
+  }
+  const query = queryMap[mode]
+  if (mode === 'image') return `https://image.baidu.com/search/index?tn=baiduimage&word=${encodeURIComponent(query)}`
+  return `https://www.baidu.com/s?wd=${encodeURIComponent(query)}`
+}
+
+function createEmergencySearchCandidate(text: string): WebSongCandidate {
+  const title = normalizeSearchText(text) || text
+  const refs: any[] = [
+    { title: `搜索：${title} 吉他谱`, url: buildQuickUrl(title, 'web'), snippet: '网络较慢时可先用这个入口查找曲谱资源。', provider: 'local_quick_entry', result_type: 'fallback', importable: false, previewable: false, action_hint: 'view_only', action_label: '打开搜索' },
+    { title: `图片谱：${title}`, url: buildQuickUrl(title, 'image'), snippet: '优先查找图片谱，适合先看原谱。', provider: 'local_quick_entry', result_type: 'fallback', importable: false, previewable: false, action_hint: 'view_only', action_label: '打开搜索' },
+    { title: `52C大调：${title}`, url: buildQuickUrl(title, 'site52'), snippet: '在 52cmajor.com 内定向搜索曲谱。', provider: 'local_site_entry', result_type: 'fallback', importable: false, previewable: false, action_hint: 'view_only', action_label: '打开搜索' },
+    { title: `吉他屋：${title}`, url: buildQuickUrl(title, 'jita5'), snippet: '在 jita5.com 内定向搜索曲谱。', provider: 'local_site_entry', result_type: 'fallback', importable: false, previewable: false, action_hint: 'view_only', action_label: '打开搜索' },
+    { title: `吉他帮：${title}`, url: buildQuickUrl(title, 'jitabang'), snippet: '在 jitabang.com 内定向搜索曲谱。', provider: 'local_site_entry', result_type: 'fallback', importable: false, previewable: false, action_hint: 'view_only', action_label: '打开搜索' },
+    { title: `曲谱123：${title}`, url: buildQuickUrl(title, 'qupu123'), snippet: '在 qupu123.com 内定向搜索曲谱。', provider: 'local_site_entry', result_type: 'fallback', importable: false, previewable: false, action_hint: 'view_only', action_label: '打开搜索' },
+  ]
+  return {
+    title,
+    artist: '',
+    album: '',
+    confidence: 0.5,
+    source: 'local_quick_entry',
+    summary: '网络搜索暂时较慢，已提供曲谱站快速入口。',
+    references: refs,
+    tabReferences: refs,
+    arrangementHints: { tabReferenceCount: refs.length, imageReferenceCount: 0, textReferenceCount: 0, viewOnlyCount: refs.length },
+  }
+}
+
+async function showEmergencySearch(text: string, reason = '网络搜索暂时较慢') {
+  const candidate = createEmergencySearchCandidate(text)
+  webCandidates.value = [candidate]
+  webCandidate.value = null
+  webResultLabel.value = '曲谱快速入口'
+  await streamAiMessage(`${reason}，已先给你曲谱站快速入口。可以点参考结果继续查找，也可以使用 AI 编配。`)
+  nextTick(() => { scrollTop.value += 560 })
+}
+
 function seedSongToCandidate(song: Song | any): WebSongCandidate {
   return {
     title: song.title || '未命名歌曲',
@@ -333,40 +371,48 @@ function seedSongToCandidate(song: Song | any): WebSongCandidate {
 async function lookupWebCandidate(text: string, forceRefresh = false) {
   lastSearchText.value = text
   await streamAiMessage(forceRefresh ? '正在重新搜索最新曲谱资源。' : '正在为你搜索曲谱资源。')
-  const web = await searchWebSong(text, { forceRefresh })
-  const candidates = web.candidates || []
-  if (!candidates.length) {
-    await streamAiMessage('暂未找到匹配资源。可以补充歌手名后再试，或使用 AI 编配。')
-    return
+  try {
+    const web = await searchWebSong(text, { forceRefresh })
+    const candidates = web.candidates || []
+    if (!candidates.length) {
+      await showEmergencySearch(text, '暂未找到稳定匹配资源')
+      return
+    }
+    webCandidates.value = candidates
+    webCandidate.value = null
+    webResultLabel.value = web.tabSearchEnabled ? '曲谱搜索结果' : '歌曲搜索结果'
+    const first = candidates[0]
+    const refs = first.tabReferences || first.references || []
+    const previewCount = refs.filter((item: any) => item.previewable).length
+    const importCount = refs.filter((item: any) => item.importable).length
+    await streamAiMessage(`已找到 ${refs.length || candidates.length} 条相关结果：${previewCount} 条图片谱、${importCount} 条可转谱资源。`)
+    nextTick(() => { scrollTop.value += 560 })
+  } catch (error: any) {
+    await showEmergencySearch(text, error?.message || '网络搜索暂时较慢')
   }
-  webCandidates.value = candidates
-  webCandidate.value = null
-  webResultLabel.value = web.tabSearchEnabled ? '曲谱搜索结果' : '歌曲搜索结果'
-  const first = candidates[0]
-  const refs = first.tabReferences || first.references || []
-  const previewCount = refs.filter((item: any) => item.previewable).length
-  const importCount = refs.filter((item: any) => item.importable).length
-  await streamAiMessage(`已找到 ${refs.length || candidates.length} 条相关结果：${previewCount} 条图片谱、${importCount} 条可转谱资源。`)
-  nextTick(() => { scrollTop.value += 560 })
 }
 
 async function lookupTabCandidate(text: string, forceRefresh = false) {
   lastSearchText.value = text
   await streamAiMessage(forceRefresh ? '正在绕开缓存重新搜索曲谱资源。' : '正在搜索吉他谱、和弦谱和图片谱资源。')
-  const web = await searchWebTabs(text, { forceRefresh })
-  const candidates = web.candidates || []
-  if (!candidates.length) {
-    await streamAiMessage('暂未找到匹配曲谱资源。可以补充歌手名后再试。')
-    return
+  try {
+    const web = await searchWebTabs(text, { forceRefresh })
+    const candidates = web.candidates || []
+    if (!candidates.length) {
+      await showEmergencySearch(text, '暂未找到稳定曲谱资源')
+      return
+    }
+    webCandidates.value = candidates
+    webCandidate.value = null
+    webResultLabel.value = forceRefresh ? '最新曲谱资源' : '吉他谱资源'
+    const refs = candidates[0]?.tabReferences || candidates[0]?.references || []
+    const previewCount = refs.filter((item: any) => item.previewable).length
+    const importCount = refs.filter((item: any) => item.importable).length
+    await streamAiMessage(`已找到 ${refs.length || candidates.length} 条曲谱资源：${previewCount} 条可预览、${importCount} 条可转谱。`)
+    nextTick(() => { scrollTop.value += 560 })
+  } catch (error: any) {
+    await showEmergencySearch(text, error?.message || '曲谱搜索暂时较慢')
   }
-  webCandidates.value = candidates
-  webCandidate.value = null
-  webResultLabel.value = forceRefresh ? '最新曲谱资源' : '吉他谱资源'
-  const refs = candidates[0]?.tabReferences || candidates[0]?.references || []
-  const previewCount = refs.filter((item: any) => item.previewable).length
-  const importCount = refs.filter((item: any) => item.importable).length
-  await streamAiMessage(`已找到 ${refs.length || candidates.length} 条曲谱资源：${previewCount} 条可预览、${importCount} 条可转谱。`)
-  nextTick(() => { scrollTop.value += 560 })
 }
 
 async function refreshLastSearch() {
@@ -379,8 +425,6 @@ async function refreshLastSearch() {
   loading.value = true
   try {
     await lookupTabCandidate(text, true)
-  } catch (error: any) {
-    await streamAiMessage(error?.message || '重新搜索失败，请稍后再试。')
   } finally {
     loading.value = false
   }
