@@ -89,6 +89,7 @@
 
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
 import HomeHero from '@/components/home/HomeHero.vue'
 import HomeModeGrid from '@/components/home/HomeModeGrid.vue'
 import ChatBubble from '@/components/home/ChatBubble.vue'
@@ -101,6 +102,7 @@ import { createChords, createSongwriting, createWebChords } from '@/api/ai'
 import { searchSongs } from '@/api/songs'
 import { searchWebSong, searchWebTabs } from '@/api/webSearch'
 import { useAuthStore } from '@/stores/auth'
+import { saveRecentSearch } from '@/utils/recent'
 import type { AiSongResult, Song } from '@/types'
 import type { WebSongCandidate } from '@/api/webSearch'
 
@@ -146,6 +148,16 @@ const modeItems = [
   { icon: '♬', label: '配和弦', value: 'chord', badge: '智能', desc: '为歌词智能匹配和弦', statusIcon: '♬', statusText: 'C G Am F' },
   { icon: '♪', label: 'AI写歌', value: 'song', badge: '创作', desc: '输入灵感，生成歌词与和弦', statusIcon: '♫', statusText: '快速生成' },
 ]
+
+onLoad((query) => {
+  const keyword = decodeURIComponent(String(query?.keyword || '')).trim()
+  if (!keyword) return
+  activeMode.value = 'search'
+  inputText.value = keyword
+  setTimeout(() => {
+    sendMessage()
+  }, 620)
+})
 
 onMounted(() => {
   setTimeout(() => {
@@ -421,6 +433,7 @@ async function sendMessage() {
     const route = detectRoute(text)
 
     if (route === 'search' || route === 'practice') {
+      saveRecentSearch(text)
       if (isTabSearchIntent(text)) {
         await lookupTabCandidate(text)
         return
