@@ -161,7 +161,7 @@ onBeforeUnmount(stopTone)
 .page {
   width: 750rpx;
   min-height: 100vh;
-  padding: calc(env(safe-area-inset-top) + 52rpx) 32rpx 144rpx;
+  padding: calc(env(safe-area-inset-top) + 112rpx) 32rpx 144rpx;
   box-sizing: border-box;
   background: #F6FBF8;
 }
