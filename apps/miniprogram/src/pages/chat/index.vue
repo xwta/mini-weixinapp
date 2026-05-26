@@ -258,7 +258,6 @@ function isReliableLocalSong(song: Song | any, keywordText: string) {
 
   const title = normalizeSearchText(song.title)
   const compactTitle = compactSearchText(song.title)
-  const score = Number(song._search_score || 0)
   const fields = getSongSearchFields(song)
   const haystack = fields.map(normalizeSearchText).join(' ')
   const compactHaystack = fields.map(compactSearchText).join(' ')
@@ -269,7 +268,7 @@ function isReliableLocalSong(song: Song | any, keywordText: string) {
   if (compactHaystack.includes(compactKeyword) && compactKeyword.length >= 2) return true
   if (tokens.length && tokens.every((token) => haystack.includes(token))) return true
 
-  return score >= 45
+  return false
 }
 
 function getReliableLocalSongs(items: any[] = [], keywordText: string) {
