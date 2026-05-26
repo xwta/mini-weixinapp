@@ -69,19 +69,26 @@
     </view>
 
     <view v-if="viewOnlyRefs.length" class="resource-section resource-section--muted">
-      <view class="section-label">参考结果 · 不建议转谱</view>
+      <view class="section-label">参考结果 · 可打开查找</view>
       <view
         v-for="(ref, index) in viewOnlyRefs"
         :key="`view-${ref.url}-${index}`"
         class="ref-preview-item ref-preview-item--muted"
       >
-        <view class="ref-thumb ref-thumb--empty ref-thumb--muted">搜</view>
-        <view class="ref-main">
+        <view class="ref-thumb ref-thumb--empty ref-thumb--muted" @tap="openReferenceResource(ref)">搜</view>
+        <view class="ref-main" @tap="openReferenceResource(ref)">
           <view class="ref-title-row">
             <text class="ref-title">{{ ref.title }}</text>
             <text class="type-pill type-pill--fallback">参考</text>
           </view>
-          <text class="ref-snippet">{{ ref.snippet || '该结果仅用于参考，不直接转谱' }}</text>
+          <text class="ref-snippet">{{ ref.snippet || '该结果用于继续查找曲谱，不直接转谱' }}</text>
+          <view class="ref-meta-row">
+            <text class="ref-provider">{{ ref.source_site || ref.provider || 'web' }}</text>
+            <text class="ref-score">{{ getHostLabel(ref.url) }}</text>
+          </view>
+        </view>
+        <view class="button-col">
+          <view class="reference-btn" @tap.stop="openReferenceResource(ref)">{{ openingUrl === getResourceKey(ref) ? '打开中' : '打开' }}</view>
         </view>
       </view>
     </view>
@@ -139,17 +146,17 @@ const emit = defineEmits<{
 const openingUrl = ref('')
 const importingUrl = ref('')
 
-const allReferences = computed(() => props.candidates.flatMap((item) => item.tabReferences || item.references || []).slice(0, 12))
+const allReferences = computed(() => props.candidates.flatMap((item) => item.tabReferences || item.references || []).slice(0, 14))
 const previewableRefs = computed(() => allReferences.value.filter((ref) => canPreviewImage(ref)).slice(0, 4))
 const importableRefs = computed(() => allReferences.value.filter((ref) => canImportText(ref)).slice(0, 5))
-const viewOnlyRefs = computed(() => allReferences.value.filter((ref) => !canPreviewImage(ref) && !canImportText(ref)).slice(0, 3))
+const viewOnlyRefs = computed(() => allReferences.value.filter((ref) => !canPreviewImage(ref) && !canImportText(ref)).slice(0, 6))
 const primaryCandidate = computed(() => props.candidates[0])
 
 const noticeText = computed(() => {
-  if (importableRefs.value.length && previewableRefs.value.length) return '图片谱用于查看原谱；文本谱可转成应用内谱面。搜索入口和低置信网页不会转谱，避免抓到整页杂内容。'
+  if (importableRefs.value.length && previewableRefs.value.length) return '图片谱用于查看原谱；文本谱可转成应用内谱面；参考结果可打开继续查找。'
   if (previewableRefs.value.length) return '当前结果以图片谱为主，建议先预览；需要应用内练习时可使用 AI 编配。'
   if (importableRefs.value.length) return '当前结果包含可转谱资源，点击“转谱”生成应用内曲谱详情。'
-  return '当前没有稳定可转谱资源，可以重新搜索更完整歌名，或使用 AI 编配。'
+  return '当前展示的是曲谱搜索入口，可打开继续查找；也可以使用 AI 编配生成练习版。'
 })
 
 function getConfidenceText(candidate: WebSongCandidate) {
@@ -172,6 +179,14 @@ function getResourceKey(ref: WebSearchReference) {
   return ref.image_url || ref.thumbnail_url || ref.url || ref.title || ''
 }
 
+function getHostLabel(url = '') {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch (_error) {
+    return '网页'
+  }
+}
+
 function canPreviewImage(ref: WebSearchReference) {
   return FEATURES.ENABLE_IMAGE_PREVIEW && Boolean(ref.previewable === true || ref.action_hint === 'preview')
 }
@@ -185,10 +200,33 @@ function buildSearchQuery(ref: WebSearchReference) {
   const parts = [candidate?.title, candidate?.artist, ref.title]
     .filter(Boolean)
     .join(' ')
-    .replace(/百度图片[:：]?|百度搜索[:：]?|Bing搜索[:：]?|搜索入口|网页谱|图片谱|TXT谱|文本谱/g, ' ')
+    .replace(/百度图片[:：]?|百度搜索[:：]?|Bing搜索[:：]?|搜索入口|曲谱站搜索|网页谱|图片谱|TXT谱|文本谱/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
   return parts || ref.title || candidate?.title || ''
+}
+
+function openReferenceResource(ref: WebSearchReference) {
+  const url = ref.url || ref.image_url || ref.thumbnail_url || ''
+  if (!url) {
+    uni.showToast({ title: '资源链接为空', icon: 'none' })
+    return
+  }
+  openingUrl.value = getResourceKey(ref)
+  const encoded = encodeURIComponent(url)
+  uni.navigateTo({
+    url: `/pages/resource-webview/index?url=${encoded}&title=${encodeURIComponent(ref.title || '曲谱资源')}`,
+    fail: () => {
+      openingUrl.value = ''
+      uni.setClipboardData({
+        data: url,
+        success: () => uni.showToast({ title: '链接已复制', icon: 'none' }),
+      })
+    },
+    success: () => {
+      setTimeout(() => { openingUrl.value = '' }, 500)
+    },
+  })
 }
 
 async function openImageResource(ref: WebSearchReference) {
@@ -213,7 +251,7 @@ async function openImageResource(ref: WebSearchReference) {
     uni.hideLoading()
     uni.showModal({
       title: '图片谱未能打开',
-      content: '当前图片源暂时不可访问。你可以换一个资源，或使用 AI 编配生成练习版。',
+      content: '当前图片源暂时不可访问。可以换一个资源，或使用 AI 编配生成练习版。',
       showCancel: false,
     })
   } finally {
@@ -322,13 +360,13 @@ function previewByTempUrl(tempFileURL: string, sourceUrl = '') {
 .guide-step.active { color: #0BA45A; }
 .guide-line { flex: 1; height: 2rpx; margin: 0 10rpx; background: #DDEAE3; }
 .resource-section { margin-top: 20rpx; }
-.resource-section--muted { opacity: .88; }
+.resource-section--muted { opacity: .94; }
 .section-label { margin-bottom: 10rpx; color: #17231E; font-size: 24rpx; line-height: 32rpx; font-weight: 900; }
 .ref-preview-item, .result-item { margin-top: 12rpx; padding: 14rpx; border-radius: 20rpx; background: #FAFDFB; border: 1rpx solid #E8EFEA; display: flex; align-items: center; }
 .ref-preview-item--muted { background: #F7F9F8; }
 .ref-thumb { width: 92rpx; height: 92rpx; margin-right: 16rpx; border-radius: 16rpx; background: #EAF8F0; flex-shrink: 0; }
 .ref-thumb--empty { color: #0BA45A; font-size: 28rpx; font-weight: 900; display: flex; align-items: center; justify-content: center; }
-.ref-thumb--muted { color: #88928D; background: #EEF3F0; }
+.ref-thumb--muted { color: #0BA45A; background: #EAF8F0; }
 .ref-main, .song-main { flex: 1; min-width: 0; }
 .ref-title-row, .song-title-row { display: flex; align-items: center; min-width: 0; }
 .ref-title, .song-title { flex: 1; min-width: 0; color: #17231E; font-size: 24rpx; line-height: 32rpx; font-weight: 800; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -340,9 +378,10 @@ function previewByTempUrl(tempFileURL: string, sourceUrl = '') {
 .ref-meta-row { margin-top: 8rpx; display: flex; gap: 10rpx; }
 .ref-provider, .ref-score { color: #9AA49F; font-size: 19rpx; line-height: 24rpx; }
 .button-col { width: 90rpx; margin-left: 12rpx; display: flex; flex-direction: column; gap: 10rpx; flex-shrink: 0; }
-.open-btn, .import-btn, .choose-btn { height: 46rpx; border-radius: 999rpx; color: #FFFFFF; font-size: 19rpx; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+.open-btn, .import-btn, .choose-btn, .reference-btn { height: 46rpx; border-radius: 999rpx; color: #FFFFFF; font-size: 19rpx; font-weight: 900; display: flex; align-items: center; justify-content: center; }
 .open-btn { background: #0BA45A; }
 .import-btn { background: #17231E; }
+.reference-btn { color: #0BA45A; background: #EAF8F0; border: 1rpx solid #D8F0E4; }
 .choose-btn { width: 74rpx; margin-left: 12rpx; background: #0BA45A; flex-shrink: 0; }
 .rank { width: 42rpx; height: 42rpx; margin-right: 16rpx; border-radius: 999rpx; background: #EAF8F0; color: #0BA45A; font-size: 22rpx; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .score { margin-left: 10rpx; color: #0BA45A; font-size: 21rpx; font-weight: 800; flex-shrink: 0; }
