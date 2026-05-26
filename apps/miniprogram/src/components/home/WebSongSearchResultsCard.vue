@@ -187,8 +187,15 @@ function getHostLabel(url = '') {
   }
 }
 
+function isImageSearchEntry(ref: WebSearchReference) {
+  const title = String(ref.title || '')
+  const provider = String(ref.provider || '')
+  const url = String(ref.url || '')
+  return /图片谱|百度图片|image/i.test(title) || provider.includes('image') || /image\.baidu\.com/.test(url)
+}
+
 function canPreviewImage(ref: WebSearchReference) {
-  return FEATURES.ENABLE_IMAGE_PREVIEW && Boolean(ref.previewable === true || ref.action_hint === 'preview')
+  return FEATURES.ENABLE_IMAGE_PREVIEW && Boolean(ref.previewable === true || ref.action_hint === 'preview' || isImageSearchEntry(ref))
 }
 
 function canImportText(ref: WebSearchReference) {
