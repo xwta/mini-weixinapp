@@ -13,6 +13,11 @@
       "postcss": true,
       "minified": true
     },
+    "permission": {
+      "scope.record": {
+        "desc": "用于识别吉他琴弦音高，帮助完成调音。"
+      }
+    },
     "usingComponents": true
   }
 }
