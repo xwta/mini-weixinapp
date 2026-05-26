@@ -38,12 +38,20 @@
             </view>
           </view>
 
+          <WebSongSearchResultsCard
+            v-if="webCandidates.length && !webCandidate"
+            :candidates="webCandidates"
+            :source-label="webResultLabel"
+            @select="selectWebCandidate"
+            @searchAgain="focusInput"
+          />
+
           <WebSongSuggestionCard
             v-if="webCandidate"
             :candidate="webCandidate"
             :loading="webGenerating"
             @generate="generateFromWebCandidate"
-            @searchAgain="focusInput"
+            @back="backToSearchResults"
           />
 
           <AiResultCard
@@ -87,6 +95,7 @@ import HomeHero from '@/components/home/HomeHero.vue'
 import HomeModeGrid from '@/components/home/HomeModeGrid.vue'
 import ChatBubble from '@/components/home/ChatBubble.vue'
 import AiResultCard from '@/components/home/AiResultCard.vue'
+import WebSongSearchResultsCard from '@/components/home/WebSongSearchResultsCard.vue'
 import WebSongSuggestionCard from '@/components/home/WebSongSuggestionCard.vue'
 import AppBottomTab from '@/components/home/AppBottomTab.vue'
 import { loginWithWechatProfile } from '@/api/auth'
@@ -120,7 +129,9 @@ const scrollTop = ref(0)
 const inputFocus = ref(false)
 const placeholder = ref('输入你的音乐灵感...')
 const lastResult = ref<ResultCardState | null>(null)
+const webCandidates = ref<WebSongCandidate[]>([])
 const webCandidate = ref<WebSongCandidate | null>(null)
+const webResultLabel = ref('网络搜索结果')
 const webGenerating = ref(false)
 
 const messages = ref<ChatMessage[]>([
@@ -232,6 +243,7 @@ function normalizeChords(result: AiSongResult) {
 }
 
 function resetSearchState() {
+  webCandidates.value = []
   webCandidate.value = null
   lastResult.value = null
 }
@@ -240,27 +252,47 @@ function seedSongToCandidate(song: Song | any): WebSongCandidate {
   return {
     title: song.title || '未命名歌曲',
     artist: song.artist_name || song.author_name || '',
+    album: song.album || '',
     confidence: Math.min(0.92, Math.max(0.62, Number(song._search_score || 78) / 100)),
-    source: 'seed',
+    source: song.source_type || 'seed',
     summary: `热门曲库已识别《${song.title || '这首歌'}》${song.artist_name ? ` - ${song.artist_name}` : ''}，暂无完整曲谱，可生成 AI 简化弹唱编配版。`,
-    references: [],
+    references: song.generation_source?.references || [],
+    tabReferences: song.generation_source?.tabReferences || [],
+    arrangementHints: song.generation_source?.arrangementHints || song.content_json?.arrangementHints || {},
   }
 }
 
 async function lookupWebCandidate(text: string) {
-  await streamAiMessage('本地曲库没找到，我去网络里听听风声。')
+  await streamAiMessage('本地曲库没找到，我先把网络搜索结果列出来，你确认是哪一首。')
   const web = await searchWebSong(text)
-  const candidate = web.candidates?.[0]
+  const candidates = web.candidates || []
 
-  if (!candidate) {
+  if (!candidates.length) {
     await streamAiMessage('网络里也没找到足够明确的歌曲信息。你可以补充歌手名，或者切到 AI 写歌让我自由创作。')
     return
   }
 
-  webCandidate.value = candidate
-  await streamAiMessage(`我找到了可能的歌曲：《${candidate.title}》${candidate.artist ? ` - ${candidate.artist}` : ''}。可以点按钮生成 AI 简化弹唱版。`)
+  webCandidates.value = candidates
+  webCandidate.value = null
+  webResultLabel.value = web.tabSearchEnabled ? '网络搜索结果 · 含谱线索' : '网络搜索结果'
+  await streamAiMessage(`我找到了 ${candidates.length} 个可能结果。先选择歌曲，确认后再生成 AI 简化弹唱版。`)
   nextTick(() => {
-    scrollTop.value += 520
+    scrollTop.value += 560
+  })
+}
+
+async function selectWebCandidate(candidate: WebSongCandidate) {
+  webCandidate.value = candidate
+  await streamAiMessage(`已选择《${candidate.title}》${candidate.artist ? ` - ${candidate.artist}` : ''}。确认无误后，再点 AI 生成吉他谱。`)
+  nextTick(() => {
+    scrollTop.value += 420
+  })
+}
+
+function backToSearchResults() {
+  webCandidate.value = null
+  nextTick(() => {
+    scrollTop.value += 320
   })
 }
 
@@ -291,6 +323,7 @@ async function generateFromWebCandidate() {
       chords: normalizeChords(result),
     }
     webCandidate.value = null
+    webCandidates.value = []
   } catch (error: any) {
     await streamAiMessage(error?.message || '网络灵感和琴弦没对上，请稍后再试。')
   } finally {
@@ -318,11 +351,15 @@ async function sendMessage() {
       }
 
       const first = result.items[0] as Song | any
-      if (first.has_tab === false || first.source_type === 'seed') {
-        webCandidate.value = seedSongToCandidate(first)
-        await streamAiMessage(`热门曲库里找到了《${first.title}》${first.artist_name ? ` - ${first.artist_name}` : ''}，但还没有完整曲谱。可以点按钮生成 AI 简化弹唱版。`)
+      if (first.has_tab === false || first.source_type === 'seed' || first.source_type === 'seed_bulk') {
+        webCandidates.value = result.items
+          .filter((item: any) => item.has_tab === false || item.source_type === 'seed' || item.source_type === 'seed_bulk')
+          .map(seedSongToCandidate)
+        webCandidate.value = null
+        webResultLabel.value = '本地热门歌曲索引'
+        await streamAiMessage(`本地热门索引里找到了 ${webCandidates.value.length} 个可能结果。先选择歌曲，确认后再生成 AI 简化弹唱版。`)
         nextTick(() => {
-          scrollTop.value += 520
+          scrollTop.value += 560
         })
         return
       }
@@ -387,7 +424,7 @@ function goMain(url: string) {
 
 function handleTabChange(value: string) {
   if (value === 'chat') return
-  if (value === 'community') goMain('/pages/community/index')
+  if (value === 'tuner') goMain('/pages/community/index')
   if (value === 'mine') goMain('/pages/mine/index')
 }
 </script>
