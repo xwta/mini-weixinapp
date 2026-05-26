@@ -17,33 +17,76 @@
       <view class="guide-step">3 开始练习</view>
     </view>
 
-    <view v-if="topReferences.length" class="ref-preview-list">
+    <view v-if="previewableRefs.length" class="resource-section">
+      <view class="section-label">图片谱 · 先看谱面</view>
       <view
-        v-for="(ref, index) in topReferences"
-        :key="`${ref.url}-${index}`"
+        v-for="(ref, index) in previewableRefs"
+        :key="`preview-${ref.url}-${index}`"
         class="ref-preview-item"
       >
-        <image v-if="ref.thumbnail_url" class="ref-thumb" :src="ref.thumbnail_url" mode="aspectFill" @tap="handlePrimaryTap(ref)" />
-        <view v-else class="ref-thumb ref-thumb--empty" @tap="handlePrimaryTap(ref)">谱</view>
-        <view class="ref-main" @tap="handlePrimaryTap(ref)">
+        <image v-if="ref.thumbnail_url" class="ref-thumb" :src="ref.thumbnail_url" mode="aspectFill" @tap="openImageResource(ref)" />
+        <view v-else class="ref-thumb ref-thumb--empty" @tap="openImageResource(ref)">图</view>
+        <view class="ref-main" @tap="openImageResource(ref)">
           <view class="ref-title-row">
             <text class="ref-title">{{ ref.title }}</text>
-            <text class="type-pill" :class="`type-pill--${getRefType(ref)}`">{{ getRefTypeLabel(ref) }}</text>
+            <text class="type-pill type-pill--image">图片谱</text>
           </view>
-          <text class="ref-snippet">{{ ref.snippet || ref.source_site || ref.provider || '曲谱资源' }}</text>
+          <text class="ref-snippet">{{ ref.snippet || '可预览图片谱' }}</text>
           <view class="ref-meta-row">
             <text class="ref-provider">{{ ref.source_site || ref.provider || 'web' }}</text>
             <text class="ref-score">{{ Math.round(ref.tab_score || 0) }}分</text>
           </view>
         </view>
         <view class="button-col">
-          <view v-if="canPreviewImage(ref)" class="open-btn" @tap.stop="openImageResource(ref)">{{ openingUrl === getResourceKey(ref) ? '打开中' : '预览' }}</view>
-          <view v-if="canImportText(ref)" class="import-btn" @tap.stop="importTextResource(ref)">{{ importingUrl === getResourceKey(ref) ? '转谱中' : '转谱' }}</view>
+          <view class="open-btn" @tap.stop="openImageResource(ref)">{{ openingUrl === getResourceKey(ref) ? '打开中' : '预览' }}</view>
         </view>
       </view>
     </view>
 
-    <view v-else class="result-list">
+    <view v-if="importableRefs.length" class="resource-section">
+      <view class="section-label">文本谱 · 可转为应用内谱面</view>
+      <view
+        v-for="(ref, index) in importableRefs"
+        :key="`import-${ref.url}-${index}`"
+        class="ref-preview-item"
+      >
+        <view class="ref-thumb ref-thumb--empty" @tap="importTextResource(ref)">谱</view>
+        <view class="ref-main" @tap="importTextResource(ref)">
+          <view class="ref-title-row">
+            <text class="ref-title">{{ ref.title }}</text>
+            <text class="type-pill type-pill--text">可转谱</text>
+          </view>
+          <text class="ref-snippet">{{ ref.snippet || '可尝试生成应用内曲谱详情' }}</text>
+          <view class="ref-meta-row">
+            <text class="ref-provider">{{ ref.source_site || ref.provider || 'web' }}</text>
+            <text class="ref-score">{{ Math.round(ref.tab_score || 0) }}分</text>
+          </view>
+        </view>
+        <view class="button-col">
+          <view class="import-btn" @tap.stop="importTextResource(ref)">{{ importingUrl === getResourceKey(ref) ? '转谱中' : '转谱' }}</view>
+        </view>
+      </view>
+    </view>
+
+    <view v-if="viewOnlyRefs.length" class="resource-section resource-section--muted">
+      <view class="section-label">参考结果 · 不建议转谱</view>
+      <view
+        v-for="(ref, index) in viewOnlyRefs"
+        :key="`view-${ref.url}-${index}`"
+        class="ref-preview-item ref-preview-item--muted"
+      >
+        <view class="ref-thumb ref-thumb--empty ref-thumb--muted">搜</view>
+        <view class="ref-main">
+          <view class="ref-title-row">
+            <text class="ref-title">{{ ref.title }}</text>
+            <text class="type-pill type-pill--fallback">参考</text>
+          </view>
+          <text class="ref-snippet">{{ ref.snippet || '该结果仅用于参考，不直接转谱' }}</text>
+        </view>
+      </view>
+    </view>
+
+    <view v-if="!allReferences.length" class="result-list">
       <view
         v-for="(item, index) in candidates.slice(0, 5)"
         :key="`${item.title}-${item.artist || ''}-${index}`"
@@ -96,18 +139,17 @@ const emit = defineEmits<{
 const openingUrl = ref('')
 const importingUrl = ref('')
 
-const topReferences = computed(() => {
-  const refs = props.candidates.flatMap((item) => item.tabReferences || item.references || [])
-  return refs.slice(0, 8)
-})
-
+const allReferences = computed(() => props.candidates.flatMap((item) => item.tabReferences || item.references || []).slice(0, 12))
+const previewableRefs = computed(() => allReferences.value.filter((ref) => canPreviewImage(ref)).slice(0, 4))
+const importableRefs = computed(() => allReferences.value.filter((ref) => canImportText(ref)).slice(0, 5))
+const viewOnlyRefs = computed(() => allReferences.value.filter((ref) => !canPreviewImage(ref) && !canImportText(ref)).slice(0, 3))
 const primaryCandidate = computed(() => props.candidates[0])
 
 const noticeText = computed(() => {
-  if (FEATURES.ENABLE_IMAGE_PREVIEW && FEATURES.ENABLE_TEXT_IMPORT) return '建议先点“预览”查看图片谱；需要应用内练习时，再点“转谱”生成曲谱详情。'
-  if (FEATURES.ENABLE_IMAGE_PREVIEW) return '点击“预览”查看图片谱，也可以使用 AI 编配生成练习版。'
-  if (FEATURES.ENABLE_TEXT_IMPORT) return '点击“转谱”可生成应用内曲谱详情。'
-  return '已为你整理曲谱资源，可重新搜索或使用 AI 编配。'
+  if (importableRefs.value.length && previewableRefs.value.length) return '图片谱用于查看原谱；文本谱可转成应用内谱面。搜索入口和低置信网页不会转谱，避免抓到整页杂内容。'
+  if (previewableRefs.value.length) return '当前结果以图片谱为主，建议先预览；需要应用内练习时可使用 AI 编配。'
+  if (importableRefs.value.length) return '当前结果包含可转谱资源，点击“转谱”生成应用内曲谱详情。'
+  return '当前没有稳定可转谱资源，可以重新搜索更完整歌名，或使用 AI 编配。'
 })
 
 function getConfidenceText(candidate: WebSongCandidate) {
@@ -119,22 +161,14 @@ function getTabCount(candidate: WebSongCandidate) {
 }
 
 function getTotalTabCount() {
-  return props.candidates.reduce((sum, item) => sum + getTabCount(item), 0) || topReferences.value.length || props.candidates.length
+  return props.candidates.reduce((sum, item) => sum + getTabCount(item), 0) || allReferences.value.length || props.candidates.length
 }
 
 function getRefType(ref: WebSearchReference) {
-  if (ref.result_type === 'image' || ref.thumbnail_url) return 'image'
-  if (ref.result_type === 'text') return 'text'
+  if (ref.result_type === 'image' || ref.thumbnail_url || ref.previewable) return 'image'
+  if (ref.result_type === 'text' || ref.importable) return 'text'
   if (ref.result_type === 'fallback') return 'fallback'
   return 'web'
-}
-
-function getRefTypeLabel(ref: WebSearchReference) {
-  const type = getRefType(ref)
-  if (type === 'image') return '图片谱'
-  if (type === 'text') return '文本谱'
-  if (type === 'fallback') return '搜索入口'
-  return '网页谱'
 }
 
 function getFallbackSummary(candidate: WebSongCandidate) {
@@ -146,11 +180,15 @@ function getResourceKey(ref: WebSearchReference) {
 }
 
 function canPreviewImage(ref: WebSearchReference) {
-  return FEATURES.ENABLE_IMAGE_PREVIEW && (getRefType(ref) === 'image' || Boolean(ref.thumbnail_url || ref.image_url))
+  return FEATURES.ENABLE_IMAGE_PREVIEW && Boolean(ref.previewable || ref.action_hint === 'preview' || getRefType(ref) === 'image')
 }
 
 function canImportText(ref: WebSearchReference) {
-  return FEATURES.ENABLE_TEXT_IMPORT && getRefType(ref) !== 'image'
+  if (!FEATURES.ENABLE_TEXT_IMPORT) return false
+  if (ref.importable === false || ref.action_hint === 'view_only') return false
+  if (canPreviewImage(ref)) return false
+  if (getRefType(ref) === 'fallback') return false
+  return Boolean(ref.importable || ref.action_hint === 'import' || getRefType(ref) === 'text')
 }
 
 function buildSearchQuery(ref: WebSearchReference) {
@@ -162,18 +200,6 @@ function buildSearchQuery(ref: WebSearchReference) {
     .replace(/\s+/g, ' ')
     .trim()
   return parts || ref.title || candidate?.title || ''
-}
-
-function handlePrimaryTap(ref: WebSearchReference) {
-  if (canPreviewImage(ref)) {
-    openImageResource(ref)
-    return
-  }
-  if (canImportText(ref)) {
-    importTextResource(ref)
-    return
-  }
-  if (FEATURES.ENABLE_AI_GENERATE) emit('select', primaryCandidate.value)
 }
 
 async function openImageResource(ref: WebSearchReference) {
@@ -194,7 +220,7 @@ async function openImageResource(ref: WebSearchReference) {
       search_query: buildSearchQuery(ref),
     })
     await previewFromCloudResult(result, ref)
-  } catch (error: any) {
+  } catch (_error: any) {
     uni.hideLoading()
     uni.showModal({
       title: '图片谱未能打开',
@@ -207,7 +233,10 @@ async function openImageResource(ref: WebSearchReference) {
 }
 
 async function importTextResource(ref: WebSearchReference) {
-  if (!canImportText(ref)) return
+  if (!canImportText(ref)) {
+    uni.showToast({ title: '该资源不适合转谱', icon: 'none' })
+    return
+  }
   const key = getResourceKey(ref)
   if (!key) {
     uni.showToast({ title: '资源链接为空', icon: 'none' })
@@ -223,6 +252,8 @@ async function importTextResource(ref: WebSearchReference) {
       artist: candidate?.artist || '',
       url: ref.url,
       search_query: buildSearchQuery(ref),
+      importable: true,
+      action_hint: 'import',
     })
     saveRecentImport({
       songId: result.songId,
@@ -239,7 +270,7 @@ async function importTextResource(ref: WebSearchReference) {
     uni.hideLoading()
     uni.showModal({
       title: '暂未生成谱面',
-      content: '这个资源没有解析出可用文本谱。可以换一个“网页谱/文本谱”资源，或直接使用 AI 编配。',
+      content: '这个资源没有命中可用文本谱。可以换一个“文本谱/可转谱”资源，或直接使用 AI 编配。',
       confirmText: '知道了',
       showCancel: false,
     })
@@ -301,17 +332,21 @@ function previewByTempUrl(tempFileURL: string, sourceUrl = '') {
 .guide-step { color: #7B8580; font-size: 20rpx; font-weight: 800; white-space: nowrap; }
 .guide-step.active { color: #0BA45A; }
 .guide-line { flex: 1; height: 2rpx; margin: 0 10rpx; background: #DDEAE3; }
-.ref-preview-list, .result-list { margin-top: 18rpx; }
-.ref-preview-item, .result-item { margin-top: 14rpx; padding: 14rpx; border-radius: 20rpx; background: #FAFDFB; border: 1rpx solid #E8EFEA; display: flex; align-items: center; }
+.resource-section { margin-top: 20rpx; }
+.resource-section--muted { opacity: .88; }
+.section-label { margin-bottom: 10rpx; color: #17231E; font-size: 24rpx; line-height: 32rpx; font-weight: 900; }
+.ref-preview-item, .result-item { margin-top: 12rpx; padding: 14rpx; border-radius: 20rpx; background: #FAFDFB; border: 1rpx solid #E8EFEA; display: flex; align-items: center; }
+.ref-preview-item--muted { background: #F7F9F8; }
 .ref-thumb { width: 92rpx; height: 92rpx; margin-right: 16rpx; border-radius: 16rpx; background: #EAF8F0; flex-shrink: 0; }
 .ref-thumb--empty { color: #0BA45A; font-size: 28rpx; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+.ref-thumb--muted { color: #88928D; background: #EEF3F0; }
 .ref-main, .song-main { flex: 1; min-width: 0; }
 .ref-title-row, .song-title-row { display: flex; align-items: center; min-width: 0; }
 .ref-title, .song-title { flex: 1; min-width: 0; color: #17231E; font-size: 24rpx; line-height: 32rpx; font-weight: 800; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .type-pill { height: 32rpx; margin-left: 10rpx; padding: 0 10rpx; border-radius: 999rpx; font-size: 18rpx; line-height: 32rpx; font-weight: 800; flex-shrink: 0; }
 .type-pill--image { color: #B66D00; background: #FFF4DC; }
 .type-pill--text { color: #0A7ACC; background: #E8F4FF; }
-.type-pill--fallback, .type-pill--web { color: #0BA45A; background: #EAF8F0; }
+.type-pill--fallback, .type-pill--web { color: #7B8580; background: #EEF3F0; }
 .ref-snippet, .artist, .summary { display: block; margin-top: 6rpx; color: #7B8580; font-size: 21rpx; line-height: 30rpx; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ref-meta-row { margin-top: 8rpx; display: flex; gap: 10rpx; }
 .ref-provider, .ref-score { color: #9AA49F; font-size: 19rpx; line-height: 24rpx; }
