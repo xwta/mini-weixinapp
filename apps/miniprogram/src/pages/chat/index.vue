@@ -14,9 +14,7 @@
 
       <view v-else class="page-content">
         <HomeHero @openRecord="openRecord" />
-
         <view class="section-space" />
-
         <HomeModeGrid :items="modeItems" @select="selectMode" />
 
         <view class="chat-area">
@@ -118,16 +116,16 @@ interface ResultCardState {
   chords: string
 }
 
-type ModeValue = 'song' | 'search' | 'chord' | 'practice'
+type ModeValue = 'search' | 'song' | 'chord' | 'practice'
 
 const inputText = ref('')
-const activeMode = ref<ModeValue>('song')
+const activeMode = ref<ModeValue>('search')
 const loading = ref(false)
 const booting = ref(true)
 const pageLeaving = ref(false)
 const scrollTop = ref(0)
 const inputFocus = ref(false)
-const placeholder = ref('输入歌名、歌手或创作灵感')
+const placeholder = ref('输入歌名或歌手搜索曲谱')
 const lastResult = ref<ResultCardState | null>(null)
 const webCandidates = ref<WebSongCandidate[]>([])
 const webCandidate = ref<WebSongCandidate | null>(null)
@@ -138,15 +136,15 @@ const messages = ref<ChatMessage[]>([
   {
     id: 'welcome',
     role: 'ai',
-    content: '欢迎使用谱灵 AI。你可以搜索曲谱、导入文本谱、预览图片谱，也可以进行 AI 编配与练习。',
+    content: '欢迎使用谱灵 AI。直接输入歌名或歌手即可搜索曲谱，也可以查看图片谱、导入文本谱和进行 AI 编配。',
   },
 ])
 
 const modeItems = [
-  { icon: '♪', label: 'AI写歌', value: 'song', badge: '创作', desc: '输入灵感，生成歌词与和弦', statusIcon: '♫', statusText: '快速生成' },
-  { icon: '⌕', label: '搜谱', value: 'search', badge: '热门', desc: '搜索歌曲曲谱资源', statusIcon: '🔥', statusText: '曲谱检索' },
-  { icon: '♬', label: '配和弦', value: 'chord', badge: '智能', desc: '为歌词智能匹配和弦', statusIcon: '♬', statusText: 'C G Am F' },
+  { icon: '⌕', label: '搜谱', value: 'search', badge: '默认', desc: '输入歌名，搜索曲谱资源', statusIcon: '🔥', statusText: '曲谱检索' },
   { icon: '▶', label: '练习', value: 'practice', badge: '今日', desc: '打开曲谱开始练习', statusIcon: '◷', statusText: '12 分钟' },
+  { icon: '♬', label: '配和弦', value: 'chord', badge: '智能', desc: '为歌词智能匹配和弦', statusIcon: '♬', statusText: 'C G Am F' },
+  { icon: '♪', label: 'AI写歌', value: 'song', badge: '创作', desc: '输入灵感，生成歌词与和弦', statusIcon: '♫', statusText: '快速生成' },
 ]
 
 onMounted(() => {
@@ -158,10 +156,10 @@ onMounted(() => {
 function selectMode(value: string) {
   activeMode.value = value as ModeValue
   const prompts: Record<ModeValue, string> = {
-    song: '输入一句灵感，生成歌词与和弦',
     search: '输入歌名或歌手搜索曲谱',
-    chord: '粘贴歌词，智能匹配和弦',
     practice: '输入歌名，打开曲谱开始练习',
+    chord: '粘贴歌词，智能匹配和弦',
+    song: '输入一句灵感，生成歌词与和弦',
   }
   placeholder.value = prompts[activeMode.value]
   inputFocus.value = true
@@ -174,6 +172,7 @@ function fillPrompt(prompt: string) {
 }
 
 function focusInput() {
+  activeMode.value = 'search'
   placeholder.value = '输入歌名、歌手或曲谱关键词继续搜索'
   inputFocus.value = true
 }
@@ -241,6 +240,10 @@ function isTabSearchIntent(text = '') {
   return /吉他谱|曲谱|谱子|弹唱谱|和弦谱|六线谱|gtp|guitar\s*tab|guitar\s*chords?|\bchords?\b|\btabs?\b/i.test(text)
 }
 
+function isCreationIntent(text = '') {
+  return /写一首|生成|创作|编一首|歌词|风格|民谣|摇滚|情歌|rap|说唱|旋律|作词|作曲/.test(text)
+}
+
 function getSongSearchFields(song: Song | any) {
   return [
     song.title,
@@ -280,15 +283,11 @@ function getReliableLocalSongs(items: any[] = [], keywordText: string) {
 }
 
 function detectRoute(text: string): ModeValue {
-  if (activeMode.value !== 'song') return activeMode.value
-  if (isTabSearchIntent(text)) return 'search'
-  if (/搜|找|曲谱|吉他谱|谱子/.test(text)) return 'search'
+  if (activeMode.value === 'song' || activeMode.value === 'chord' || activeMode.value === 'practice') return activeMode.value
   if (/配和弦|和弦|歌词/.test(text) && text.length > 20) return 'chord'
   if (/练习|开始练|滚谱/.test(text)) return 'practice'
-  const compact = compactSearchText(text)
-  const looksLikeSongName = /^[\u4e00-\u9fa5a-zA-Z0-9·\-\s]+$/.test(text) && compact.length >= 2 && compact.length <= 18
-  if (looksLikeSongName && !/写一首|生成|创作|编一首|歌词|风格|民谣|摇滚|情歌/.test(text)) return 'search'
-  return 'song'
+  if (isCreationIntent(text) && !isTabSearchIntent(text)) return 'song'
+  return 'search'
 }
 
 async function ensureLogin() {
@@ -532,235 +531,38 @@ function handleTabChange(value: string) {
   transition: opacity 0.16s ease, transform 0.16s ease;
 }
 
-.page--leaving {
-  opacity: 0;
-  transform: translateY(12rpx) scale(0.992);
-}
-
-.content {
-  height: calc(100vh - 244rpx);
-  box-sizing: border-box;
-}
-
-.page-content {
-  animation: contentIn 0.32s ease both;
-}
-
-.skeleton-page {
-  width: 750rpx;
-  padding: calc(env(safe-area-inset-top) + 104rpx) 32rpx 0;
-  box-sizing: border-box;
-}
-
-.skeleton-block {
-  position: relative;
-  overflow: hidden;
-  background: var(--skeleton-bg);
-}
-
-.skeleton-block::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -60%;
-  width: 60%;
-  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.64), rgba(255,255,255,0));
-  animation: shimmer 1.18s ease-in-out infinite;
-}
-
-.skeleton-hero {
-  width: 686rpx;
-  height: 110rpx;
-  border-radius: 30rpx;
-}
-
-.skeleton-grid {
-  margin-top: 32rpx;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 18rpx;
-}
-
-.skeleton-card {
-  height: 258rpx;
-  border-radius: 28rpx;
-}
-
-.skeleton-chat {
-  margin-top: 46rpx;
-  display: flex;
-  align-items: flex-start;
-}
-
-.skeleton-avatar {
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 999rpx;
-  margin-right: 20rpx;
-}
-
-.skeleton-bubble {
-  width: 548rpx;
-  height: 360rpx;
-  border-radius: 28rpx;
-}
-
-.section-space {
-  height: 32rpx;
-}
-
-.chat-area {
-  margin-top: 46rpx;
-  padding-bottom: 36rpx;
-}
-
-.typing-row {
-  width: 750rpx;
-  padding: 0 32rpx;
-  margin-bottom: 24rpx;
-  display: flex;
-  align-items: flex-start;
-  box-sizing: border-box;
-}
-
-.typing-avatar {
-  width: 72rpx;
-  height: 72rpx;
-  margin-right: 20rpx;
-  border-radius: 999rpx;
-  background: linear-gradient(135deg, var(--brand-bright) 0%, var(--brand) 100%);
-  color: #FFFFFF;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 30rpx;
-  font-weight: 800;
-}
-
-.typing-bubble {
-  height: 64rpx;
-  padding: 0 28rpx;
-  border-radius: 999rpx;
-  background: var(--card-bg);
-  border: 1rpx solid var(--line-soft);
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
-}
-
-.typing-dot {
-  width: 10rpx;
-  height: 10rpx;
-  border-radius: 999rpx;
-  background: var(--brand);
-  animation: typing 0.9s infinite ease-in-out;
-}
-
+.page--leaving { opacity: 0; transform: translateY(12rpx) scale(0.992); }
+.content { height: calc(100vh - 244rpx); box-sizing: border-box; }
+.page-content { animation: contentIn 0.32s ease both; }
+.skeleton-page { width: 750rpx; padding: calc(env(safe-area-inset-top) + 104rpx) 32rpx 0; box-sizing: border-box; }
+.skeleton-block { position: relative; overflow: hidden; background: var(--skeleton-bg); }
+.skeleton-block::after { content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 60%; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.64), rgba(255,255,255,0)); animation: shimmer 1.18s ease-in-out infinite; }
+.skeleton-hero { width: 686rpx; height: 110rpx; border-radius: 30rpx; }
+.skeleton-grid { margin-top: 32rpx; display: grid; grid-template-columns: repeat(2, 1fr); gap: 18rpx; }
+.skeleton-card { height: 258rpx; border-radius: 28rpx; }
+.skeleton-chat { margin-top: 46rpx; display: flex; align-items: flex-start; }
+.skeleton-avatar { width: 72rpx; height: 72rpx; border-radius: 999rpx; margin-right: 20rpx; }
+.skeleton-bubble { width: 548rpx; height: 360rpx; border-radius: 28rpx; }
+.section-space { height: 32rpx; }
+.chat-area { margin-top: 46rpx; padding-bottom: 36rpx; }
+.typing-row { width: 750rpx; padding: 0 32rpx; margin-bottom: 24rpx; display: flex; align-items: flex-start; box-sizing: border-box; }
+.typing-avatar { width: 72rpx; height: 72rpx; margin-right: 20rpx; border-radius: 999rpx; background: linear-gradient(135deg, var(--brand-bright) 0%, var(--brand) 100%); color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 30rpx; font-weight: 800; }
+.typing-bubble { height: 64rpx; padding: 0 28rpx; border-radius: 999rpx; background: var(--card-bg); border: 1rpx solid var(--line-soft); display: flex; align-items: center; gap: 10rpx; }
+.typing-dot { width: 10rpx; height: 10rpx; border-radius: 999rpx; background: var(--brand); animation: typing 0.9s infinite ease-in-out; }
 .typing-dot:nth-child(2) { animation-delay: .12s; }
 .typing-dot:nth-child(3) { animation-delay: .24s; }
+.input-bar { position: fixed; left: 0; right: 0; bottom: 132rpx; width: 750rpx; padding: 14rpx 32rpx 16rpx; box-sizing: border-box; background: var(--page-bg); display: flex; align-items: center; gap: 14rpx; z-index: 18; }
+.voice-btn { width: 72rpx; height: 72rpx; border-radius: 999rpx; background: var(--control-bg); border: 1rpx solid var(--line-soft); box-shadow: 0 10rpx 24rpx rgba(23, 35, 30, 0.045); display: flex; align-items: center; justify-content: center; font-size: 32rpx; flex-shrink: 0; }
+.input-shell { flex: 1; height: 72rpx; min-width: 0; border-radius: 999rpx; background: var(--card-bg); border: 1rpx solid var(--line-soft); box-shadow: 0 10rpx 24rpx rgba(23, 35, 30, 0.045); display: flex; align-items: center; box-sizing: border-box; overflow: hidden; }
+.chat-input { flex: 1; min-width: 0; height: 72rpx; padding: 0 10rpx 0 26rpx; box-sizing: border-box; font-size: 26rpx; color: var(--text-main); }
+.tool-btn { width: 54rpx; height: 72rpx; color: var(--text-strong); font-size: 30rpx; line-height: 72rpx; text-align: center; flex-shrink: 0; }
+.music-tool { font-size: 34rpx; color: var(--text-strong); }
+.send-btn { width: 104rpx; height: 72rpx; border-radius: 999rpx; background: linear-gradient(135deg, var(--brand-bright) 0%, var(--brand) 100%); color: #FFFFFF; font-size: 27rpx; font-weight: 800; display: flex; align-items: center; justify-content: center; box-shadow: 0 14rpx 26rpx rgba(16, 177, 90, 0.2); flex-shrink: 0; }
+.send-btn.loading { opacity: .72; }
 
-.input-bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 132rpx;
-  width: 750rpx;
-  padding: 14rpx 32rpx 16rpx;
-  box-sizing: border-box;
-  background: var(--page-bg);
-  display: flex;
-  align-items: center;
-  gap: 14rpx;
-  z-index: 18;
-}
-
-.voice-btn {
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 999rpx;
-  background: var(--control-bg);
-  border: 1rpx solid var(--line-soft);
-  box-shadow: 0 10rpx 24rpx rgba(23, 35, 30, 0.045);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 32rpx;
-  flex-shrink: 0;
-}
-
-.input-shell {
-  flex: 1;
-  height: 72rpx;
-  min-width: 0;
-  border-radius: 999rpx;
-  background: var(--card-bg);
-  border: 1rpx solid var(--line-soft);
-  box-shadow: 0 10rpx 24rpx rgba(23, 35, 30, 0.045);
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-.chat-input {
-  flex: 1;
-  min-width: 0;
-  height: 72rpx;
-  padding: 0 10rpx 0 26rpx;
-  box-sizing: border-box;
-  font-size: 26rpx;
-  color: var(--text-main);
-}
-
-.tool-btn {
-  width: 54rpx;
-  height: 72rpx;
-  color: var(--text-strong);
-  font-size: 30rpx;
-  line-height: 72rpx;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-.music-tool {
-  font-size: 34rpx;
-  color: var(--text-strong);
-}
-
-.send-btn {
-  width: 104rpx;
-  height: 72rpx;
-  border-radius: 999rpx;
-  background: linear-gradient(135deg, var(--brand-bright) 0%, var(--brand) 100%);
-  color: #FFFFFF;
-  font-size: 27rpx;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 14rpx 26rpx rgba(16, 177, 90, 0.2);
-  flex-shrink: 0;
-}
-
-.send-btn.loading {
-  opacity: .72;
-}
-
-@keyframes contentIn {
-  from { opacity: 0; transform: translateY(20rpx); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes shimmer {
-  from { transform: translateX(0); }
-  to { transform: translateX(280%); }
-}
-
-@keyframes typing {
-  0%, 80%, 100% { opacity: .34; transform: translateY(0); }
-  40% { opacity: 1; transform: translateY(-5rpx); }
-}
+@keyframes contentIn { from { opacity: 0; transform: translateY(20rpx); } to { opacity: 1; transform: translateY(0); } }
+@keyframes shimmer { from { transform: translateX(0); } to { transform: translateX(280%); } }
+@keyframes typing { 0%, 80%, 100% { opacity: .34; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-5rpx); } }
 
 @media (prefers-color-scheme: dark) {
   .page {
