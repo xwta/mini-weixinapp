@@ -1,190 +1,147 @@
 <template>
   <view class="page">
-    <view class="top-area">
-      <view class="page-title-row">
-        <text class="page-title">社区</text>
-        <view class="publish-btn" @tap="goPublish">发布</view>
+    <view class="hero-card">
+      <view class="hero-top">
+        <view>
+          <text class="eyebrow">GUITAR TUNER</text>
+          <text class="page-title">吉他调音器</text>
+        </view>
+        <view class="status-pill">标准调弦</view>
       </view>
-      <AppSearchBar v-model="keyword" placeholder="搜索歌曲、用户、话题、和弦" @confirm="loadFeed" />
+      <text class="hero-desc">选择琴弦，听标准音后调节琴弦。当前为免麦克风审核版，不采集录音、不上传声音。</text>
     </view>
 
-    <view class="tabs-section">
-      <AppTabs v-model="activeTab" :items="tabs" />
+    <view class="note-card">
+      <view class="note-display">
+        <text class="current-string">{{ currentString.label }}</text>
+        <text class="current-note">{{ currentString.note }}</text>
+        <text class="current-frequency">{{ currentString.frequency }} Hz</text>
+      </view>
+      <view class="meter">
+        <view class="meter-line" />
+        <view class="meter-center" />
+        <view class="meter-dot" />
+      </view>
+      <text class="meter-tip">播放参考音，调到声音贴近即可。</text>
     </view>
 
-    <view class="feed-list">
-      <view v-for="item in posts" :key="item.id" class="post-card" @tap="openSong(item.id)">
-        <view class="author-row">
-          <view class="avatar">{{ item.avatar }}</view>
-          <view class="author-info">
-            <text class="author-name">{{ item.author }}</text>
-            <text class="post-time">{{ item.time }}</text>
-          </view>
-          <view class="follow-btn" @tap.stop="followAuthor(item)">关注</view>
-        </view>
-
-        <text class="post-title">{{ item.title }}</text>
-        <text class="post-desc">{{ item.desc }}</text>
-
-        <view class="chord-preview">
-          <text class="chord-text">{{ item.chords }}</text>
-        </view>
-
-        <view class="post-actions">
-          <text class="action" @tap.stop="likePost(item)">♡ {{ item.likes }}</text>
-          <text class="action">评论 {{ item.comments }}</text>
-          <text class="action" @tap.stop="favoritePost(item)">收藏</text>
-          <text class="action" @tap.stop="sharePost">分享</text>
-        </view>
-      </view>
-
-      <view v-if="!posts.length && !loading" class="empty-card">
-        <view class="empty-icon">♪</view>
-        <view class="empty-title">还没有社区曲谱</view>
-        <view class="empty-desc">去生成或发布第一首谱，让社区先响一声。</view>
+    <view class="string-grid">
+      <view
+        v-for="item in strings"
+        :key="item.key"
+        class="string-item"
+        :class="{ active: item.key === currentKey }"
+        @tap="selectString(item.key)"
+      >
+        <text class="string-label">{{ item.label }}</text>
+        <text class="string-note">{{ item.note }}</text>
+        <text class="string-freq">{{ item.frequency }}Hz</text>
       </view>
     </view>
 
-    <AppBottomTab active="community" @change="handleTabChange" />
+    <view class="actions-card">
+      <view class="primary-btn" :class="{ playing }" @tap="playTone">
+        {{ playing ? '播放中' : '播放参考音' }}
+      </view>
+      <view class="ghost-btn" @tap="stopTone">停止</view>
+    </view>
+
+    <view class="tips-card">
+      <text class="tips-title">调音小贴士</text>
+      <view class="tip-row" v-for="tip in tips" :key="tip">
+        <text class="tip-dot">♪</text>
+        <text class="tip-text">{{ tip }}</text>
+      </view>
+    </view>
+
+    <AppBottomTab active="tuner" @change="handleTabChange" />
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
-import AppSearchBar from '@/components/base/AppSearchBar.vue'
-import AppTabs from '@/components/base/AppTabs.vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import AppBottomTab from '@/components/home/AppBottomTab.vue'
-import { getHomeDiscovery } from '@/api/discovery'
-import { searchSongs } from '@/api/songs'
-import { addFavorite } from '@/api/favorites'
-import { followUser, likeSong } from '@/api/social'
-import { loginWithWechatProfile } from '@/api/auth'
-import { useAuthStore } from '@/stores/auth'
-import type { Song } from '@/types'
 
-interface CommunityPost {
-  id: string | number
-  userId?: string | number
-  avatar: string
-  author: string
-  time: string
-  title: string
-  desc: string
-  chords: string
-  likes: number
-  comments: number
+interface GuitarString {
+  key: string
+  label: string
+  note: string
+  frequency: number
 }
 
-const keyword = ref('')
-const activeTab = ref('recommend')
-const posts = ref<CommunityPost[]>([])
-const loading = ref(false)
-
-const tabs = [
-  { label: '推荐', value: 'recommend' },
-  { label: '关注', value: 'follow' },
-  { label: '最新', value: 'new' },
-  { label: '热门', value: 'hot' },
+const strings: GuitarString[] = [
+  { key: 'e4', label: '1弦', note: 'E4', frequency: 329.63 },
+  { key: 'b3', label: '2弦', note: 'B3', frequency: 246.94 },
+  { key: 'g3', label: '3弦', note: 'G3', frequency: 196.00 },
+  { key: 'd3', label: '4弦', note: 'D3', frequency: 146.83 },
+  { key: 'a2', label: '5弦', note: 'A2', frequency: 110.00 },
+  { key: 'e2', label: '6弦', note: 'E2', frequency: 82.41 },
 ]
 
-watch(activeTab, loadFeed)
-onShow(loadFeed)
+const tips = [
+  '先从 6 弦到 1 弦依次调，避免琴颈受力忽然变化。',
+  '新手建议微调，每次只拧一点点，听准后再继续。',
+  '如果琴弦偏低，慢慢拧紧；如果偏高，先放松再调回目标音。',
+]
 
-function toPost(song: Song | any): CommunityPost {
-  const title = song.title || '未命名曲谱'
-  const author = song.artist_name || song.author_name || (song.source_type === 'ai' ? '谱灵AI作品' : '谱友作品')
-  const chords = song.content_json?.chords?.length
-    ? song.content_json.chords.join(' · ')
-    : `${song.song_key || 'C'}调 · ${song.difficulty || '新手'}`
+const currentKey = ref('e4')
+const playing = ref(false)
+let audioContext: any = null
+let oscillator: any = null
+let gainNode: any = null
+let stopTimer: ReturnType<typeof setTimeout> | null = null
 
-  return {
-    id: song.id || song._id,
-    userId: song.user_id,
-    avatar: String(author).slice(0, 1) || '谱',
-    author,
-    time: '刚刚更新',
-    title,
-    desc: `${song.style || '弹唱'} · ${song.song_key || 'C'}调 · ${song.difficulty || '新手'}，适合直接打开练习。`,
-    chords,
-    likes: Number(song.like_count || song.likes || 0),
-    comments: Number(song.comment_count || 0),
-  }
+const currentString = computed(() => strings.find((item) => item.key === currentKey.value) || strings[0])
+
+function selectString(key: string) {
+  currentKey.value = key
+  if (playing.value) playTone()
 }
 
-async function loadFeed() {
-  loading.value = true
+function ensureAudioContext() {
+  const win = typeof window !== 'undefined' ? window as any : null
+  if (!win) return null
+  const AudioContext = win.AudioContext || win.webkitAudioContext
+  if (!AudioContext) return null
+  if (!audioContext) audioContext = new AudioContext()
+  return audioContext
+}
+
+function stopTone() {
+  if (stopTimer) {
+    clearTimeout(stopTimer)
+    stopTimer = null
+  }
   try {
-    if (keyword.value.trim()) {
-      const result = await searchSongs({ keyword: keyword.value.trim(), page_size: 30 })
-      posts.value = result.items.map(toPost)
-      return
-    }
-
-    if (activeTab.value === 'hot') {
-      const result = await searchSongs({ sort: 'likes', page_size: 30 })
-      posts.value = result.items.map(toPost)
-      return
-    }
-
-    if (activeTab.value === 'new') {
-      const result = await searchSongs({ sort: 'created_at' as any, page_size: 30 })
-      posts.value = result.items.map(toPost)
-      return
-    }
-
-    const home = await getHomeDiscovery()
-    const source = activeTab.value === 'follow' ? home.recommend : [...home.hot, ...home.recommend]
-    const dedup = new Map<string | number, any>()
-    source.forEach((item: any) => dedup.set(item.id || item._id || item.title, item))
-    posts.value = Array.from(dedup.values()).map(toPost)
-  } catch (error) {
-    console.log('community load failed', error)
-    posts.value = []
-  } finally {
-    loading.value = false
-  }
+    if (oscillator) oscillator.stop()
+  } catch (_error) {}
+  try {
+    if (oscillator) oscillator.disconnect()
+    if (gainNode) gainNode.disconnect()
+  } catch (_error) {}
+  oscillator = null
+  gainNode = null
+  playing.value = false
 }
 
-async function ensureLogin() {
-  const auth = useAuthStore()
-  if (auth.isLoggedIn) return
-  await loginWithWechatProfile({ nickname: '谱灵用户' })
-}
-
-function openSong(id: string | number) {
-  uni.navigateTo({ url: `/pages/song-detail/index?id=${id}` })
-}
-
-function goPublish() {
-  uni.navigateTo({ url: '/pages/manual-create/index' })
-}
-
-async function likePost(item: CommunityPost) {
-  await ensureLogin()
-  const res = await likeSong(item.id)
-  item.likes = res.like_count || item.likes + 1
-  uni.showToast({ title: '已点赞', icon: 'success' })
-}
-
-async function favoritePost(item: CommunityPost) {
-  await ensureLogin()
-  await addFavorite(item.id)
-  uni.showToast({ title: '已收藏', icon: 'success' })
-}
-
-async function followAuthor(item: CommunityPost) {
-  if (!item.userId) {
-    uni.showToast({ title: '作者信息不足', icon: 'none' })
+function playTone() {
+  const ctx = ensureAudioContext()
+  if (!ctx) {
+    uni.showToast({ title: '当前环境暂不支持播放参考音', icon: 'none' })
     return
   }
-  await ensureLogin()
-  await followUser(item.userId)
-  uni.showToast({ title: '已关注', icon: 'success' })
-}
 
-function sharePost() {
-  uni.showToast({ title: '分享功能待接入', icon: 'none' })
+  stopTone()
+  oscillator = ctx.createOscillator()
+  gainNode = ctx.createGain()
+  oscillator.type = 'sine'
+  oscillator.frequency.value = currentString.value.frequency
+  gainNode.gain.value = 0.16
+  oscillator.connect(gainNode)
+  gainNode.connect(ctx.destination)
+  oscillator.start()
+  playing.value = true
+  stopTimer = setTimeout(stopTone, 2600)
 }
 
 function goMain(url: string) {
@@ -192,211 +149,277 @@ function goMain(url: string) {
 }
 
 function handleTabChange(value: string) {
-  if (value === 'community') return
+  if (value === 'tuner') return
   if (value === 'chat') goMain('/pages/chat/index')
   if (value === 'mine') goMain('/pages/mine/index')
 }
+
+onBeforeUnmount(stopTone)
 </script>
 
 <style scoped>
 .page {
   width: 750rpx;
   min-height: 100vh;
+  padding: calc(env(safe-area-inset-top) + 52rpx) 32rpx 144rpx;
+  box-sizing: border-box;
   background: #F6FBF8;
-  padding-bottom: 144rpx;
-  box-sizing: border-box;
 }
 
-.top-area {
-  padding-top: calc(env(safe-area-inset-top) + 52rpx);
+.hero-card,
+.note-card,
+.actions-card,
+.tips-card {
+  width: 686rpx;
+  box-sizing: border-box;
+  border-radius: 32rpx;
+  background: #FFFFFF;
+  border: 1rpx solid #E8EFEA;
+  box-shadow: 0 10rpx 30rpx rgba(18, 52, 36, 0.05);
 }
 
-.page-title-row {
-  width: 750rpx;
-  padding: 0 32rpx 24rpx;
-  box-sizing: border-box;
+.hero-card {
+  padding: 30rpx;
+  background: linear-gradient(135deg, #EAF8F0 0%, #FFFFFF 100%);
+}
+
+.hero-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+}
+
+.eyebrow {
+  display: block;
+  color: #0BA45A;
+  font-size: 22rpx;
+  line-height: 28rpx;
+  font-weight: 900;
 }
 
 .page-title {
-  font-size: 40rpx;
-  font-weight: 800;
+  display: block;
+  margin-top: 8rpx;
   color: #17231E;
+  font-size: 42rpx;
+  line-height: 52rpx;
+  font-weight: 900;
 }
 
-.publish-btn {
-  height: 64rpx;
-  padding: 0 28rpx;
-  border-radius: 999rpx;
-  background: #0BA45A;
-  color: #FFFFFF;
-  font-size: 26rpx;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.tabs-section {
-  margin-top: 24rpx;
-}
-
-.feed-list {
-  padding: 32rpx 32rpx 0;
-  box-sizing: border-box;
-}
-
-.post-card {
-  width: 686rpx;
-  padding: 24rpx;
-  margin-bottom: 24rpx;
-  box-sizing: border-box;
-  border-radius: 24rpx;
-  background: #FFFFFF;
-  border: 1rpx solid #E8EFEA;
-  box-shadow: 0 8rpx 28rpx rgba(18,52,36,.06);
-  animation: feedIn .22s ease-out;
-}
-
-.author-row {
-  display: flex;
-  align-items: center;
-}
-
-.avatar {
-  width: 64rpx;
-  height: 64rpx;
-  border-radius: 22rpx;
-  background: #EAF8F0;
-  color: #0BA45A;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26rpx;
-  font-weight: 800;
-  margin-right: 16rpx;
-}
-
-.author-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.author-name {
-  font-size: 26rpx;
-  font-weight: 700;
-  color: #17231E;
-}
-
-.post-time {
-  margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #A4AEA8;
-}
-
-.follow-btn {
+.status-pill {
   height: 52rpx;
   padding: 0 22rpx;
   border-radius: 999rpx;
-  background: #F0FBF5;
-  color: #0BA45A;
-  font-size: 23rpx;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-}
-
-.post-title {
-  display: block;
-  margin-top: 24rpx;
-  font-size: 32rpx;
-  line-height: 42rpx;
-  font-weight: 800;
-  color: #17231E;
-}
-
-.post-desc {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 26rpx;
-  line-height: 38rpx;
-  color: #6B756F;
-}
-
-.chord-preview {
-  margin-top: 20rpx;
-  min-height: 72rpx;
-  border-radius: 18rpx;
-  background: #F6FBF8;
-  display: flex;
-  align-items: center;
-  padding: 0 22rpx;
-  box-sizing: border-box;
-}
-
-.chord-text {
-  font-size: 26rpx;
-  font-weight: 700;
-  color: #0BA45A;
-}
-
-.post-actions {
-  margin-top: 22rpx;
-  padding-top: 18rpx;
-  border-top: 1rpx solid #EDF3EF;
-  display: flex;
-  justify-content: space-between;
-}
-
-.action {
-  font-size: 23rpx;
-  color: #6B756F;
-}
-
-.empty-card {
-  width: 686rpx;
-  padding: 72rpx 32rpx;
-  box-sizing: border-box;
-  border-radius: 28rpx;
   background: #FFFFFF;
-  border: 1rpx solid #E8EFEA;
+  color: #0BA45A;
+  font-size: 23rpx;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+}
+
+.hero-desc {
+  display: block;
+  margin-top: 22rpx;
+  color: #5F6B65;
+  font-size: 25rpx;
+  line-height: 38rpx;
+}
+
+.note-card {
+  margin-top: 24rpx;
+  padding: 34rpx 28rpx;
+}
+
+.note-display {
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
-.empty-icon {
-  width: 96rpx;
-  height: 96rpx;
-  border-radius: 32rpx;
-  background: #EAF8F0;
+.current-string {
+  color: #5F6B65;
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.current-note {
+  margin-top: 10rpx;
   color: #0BA45A;
+  font-size: 92rpx;
+  line-height: 104rpx;
+  font-weight: 900;
+}
+
+.current-frequency {
+  color: #5F6B65;
+  font-size: 25rpx;
+  font-weight: 700;
+}
+
+.meter {
+  position: relative;
+  height: 88rpx;
+  margin-top: 28rpx;
+}
+
+.meter-line {
+  position: absolute;
+  left: 48rpx;
+  right: 48rpx;
+  top: 43rpx;
+  height: 8rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(90deg, #F0C36A 0%, #0BA45A 50%, #F0C36A 100%);
+}
+
+.meter-center {
+  position: absolute;
+  left: 50%;
+  top: 20rpx;
+  width: 4rpx;
+  height: 56rpx;
+  border-radius: 999rpx;
+  background: #17231E;
+}
+
+.meter-dot {
+  position: absolute;
+  left: calc(50% - 14rpx);
+  top: 32rpx;
+  width: 28rpx;
+  height: 28rpx;
+  border-radius: 999rpx;
+  background: #0BA45A;
+  box-shadow: 0 8rpx 18rpx rgba(11, 164, 90, 0.24);
+}
+
+.meter-tip {
+  display: block;
+  margin-top: 8rpx;
+  text-align: center;
+  color: #7B8580;
+  font-size: 23rpx;
+}
+
+.string-grid {
+  width: 686rpx;
+  margin-top: 24rpx;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16rpx;
+}
+
+.string-item {
+  height: 154rpx;
+  border-radius: 26rpx;
+  background: #FFFFFF;
+  border: 1rpx solid #E8EFEA;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8rpx 22rpx rgba(18, 52, 36, 0.04);
+}
+
+.string-item.active {
+  background: #0BA45A;
+  border-color: #0BA45A;
+}
+
+.string-label {
+  color: #5F6B65;
+  font-size: 23rpx;
+  font-weight: 800;
+}
+
+.string-note {
+  margin-top: 8rpx;
+  color: #17231E;
+  font-size: 38rpx;
+  font-weight: 900;
+}
+
+.string-freq {
+  margin-top: 4rpx;
+  color: #7B8580;
+  font-size: 21rpx;
+}
+
+.string-item.active .string-label,
+.string-item.active .string-note,
+.string-item.active .string-freq {
+  color: #FFFFFF;
+}
+
+.actions-card {
+  margin-top: 24rpx;
+  padding: 20rpx;
+  display: flex;
+  gap: 16rpx;
+}
+
+.primary-btn,
+.ghost-btn {
+  flex: 1;
+  height: 78rpx;
+  border-radius: 999rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 44rpx;
-  font-weight: 800;
+  font-size: 27rpx;
+  font-weight: 900;
 }
 
-.empty-title {
+.primary-btn {
+  background: linear-gradient(135deg, #0BB861 0%, #0BA45A 100%);
+  color: #FFFFFF;
+  box-shadow: 0 12rpx 24rpx rgba(16, 177, 90, 0.18);
+}
+
+.primary-btn.playing {
+  opacity: 0.76;
+}
+
+.ghost-btn {
+  background: #F6FAF8;
+  color: #5F6B65;
+  border: 1rpx solid #E8EFEA;
+}
+
+.tips-card {
   margin-top: 24rpx;
+  padding: 26rpx;
+}
+
+.tips-title {
+  display: block;
   color: #17231E;
   font-size: 30rpx;
-  font-weight: 800;
+  line-height: 38rpx;
+  font-weight: 900;
 }
 
-.empty-desc {
-  margin-top: 10rpx;
-  color: #6B756F;
+.tip-row {
+  margin-top: 18rpx;
+  display: flex;
+  align-items: flex-start;
+}
+
+.tip-dot {
+  width: 34rpx;
+  color: #0BA45A;
   font-size: 24rpx;
-  text-align: center;
+  line-height: 34rpx;
+  font-weight: 900;
+  flex-shrink: 0;
 }
 
-@keyframes feedIn {
-  from { opacity: 0; transform: translateY(16rpx); }
-  to { opacity: 1; transform: translateY(0); }
+.tip-text {
+  flex: 1;
+  min-width: 0;
+  color: #5F6B65;
+  font-size: 25rpx;
+  line-height: 36rpx;
 }
 </style>
