@@ -4,7 +4,7 @@
       <view class="icon-box">⌕</view>
       <view class="head-main">
         <text class="eyebrow">{{ sourceLabel }}</text>
-        <text class="title">直接搜索到的吉他谱资源</text>
+        <text class="title">吉他谱资源</text>
       </view>
       <view class="count">{{ getTotalTabCount() }}条</view>
     </view>
@@ -22,15 +22,15 @@
             <text class="ref-title">{{ ref.title }}</text>
             <text class="type-pill" :class="`type-pill--${getRefType(ref)}`">{{ getRefTypeLabel(ref) }}</text>
           </view>
-          <text class="ref-snippet">{{ ref.snippet || ref.source_site || ref.provider || '公开网页搜索结果' }}</text>
+          <text class="ref-snippet">{{ ref.snippet || ref.source_site || ref.provider || '曲谱资源' }}</text>
           <view class="ref-meta-row">
             <text class="ref-provider">{{ ref.source_site || ref.provider || 'web' }}</text>
             <text class="ref-score">{{ Math.round(ref.tab_score || 0) }}分</text>
           </view>
         </view>
         <view class="button-col">
-          <view class="open-btn" @tap.stop="openImageResource(ref)">{{ openingUrl === getResourceKey(ref) ? '打开中' : '图片' }}</view>
-          <view class="import-btn" @tap.stop="importTextResource(ref)">{{ importingUrl === getResourceKey(ref) ? '导入中' : '内置谱' }}</view>
+          <view class="open-btn" @tap.stop="openImageResource(ref)">{{ openingUrl === getResourceKey(ref) ? '打开中' : '看图' }}</view>
+          <view class="import-btn" @tap.stop="importTextResource(ref)">{{ importingUrl === getResourceKey(ref) ? '导入中' : '导入' }}</view>
         </view>
       </view>
     </view>
@@ -55,11 +55,11 @@
       </view>
     </view>
 
-    <view class="notice">“图片”预览图片谱；“内置谱”会搜索/解析TXT或网页文本谱，并跳转到小程序详情页。</view>
+    <view class="notice">看图可预览图片谱；导入会解析文本谱并生成应用内曲谱详情。</view>
 
     <view class="actions">
-      <view class="ghost-btn" @tap="emit('searchAgain')">换个关键词</view>
-      <view class="ghost-btn ghost-btn--ai" @tap="emit('select', candidates[0])">AI兜底</view>
+      <view class="ghost-btn" @tap="emit('searchAgain')">重新搜索</view>
+      <view class="ghost-btn ghost-btn--ai" @tap="emit('select', candidates[0])">AI编配</view>
     </view>
   </view>
 </template>
@@ -115,7 +115,7 @@ function getRefType(ref: WebSearchReference) {
 function getRefTypeLabel(ref: WebSearchReference) {
   const type = getRefType(ref)
   if (type === 'image') return '图片谱'
-  if (type === 'text') return 'TXT谱'
+  if (type === 'text') return '文本谱'
   if (type === 'fallback') return '搜索入口'
   return '网页谱'
 }
@@ -133,7 +133,7 @@ function buildSearchQuery(ref: WebSearchReference) {
   const parts = [candidate?.title, candidate?.artist, ref.title]
     .filter(Boolean)
     .join(' ')
-    .replace(/百度图片[:：]?|百度搜索[:：]?|Bing搜索[:：]?|搜索入口|网页谱|图片谱|TXT谱/g, ' ')
+    .replace(/百度图片[:：]?|百度搜索[:：]?|Bing搜索[:：]?|搜索入口|网页谱|图片谱|TXT谱|文本谱/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
   return parts || ref.title || candidate?.title || ''
@@ -158,10 +158,10 @@ async function openImageResource(ref: WebSearchReference) {
     await previewFromCloudResult(result, ref)
   } catch (error: any) {
     uni.hideLoading()
-    const message = error?.message || '图片谱打开失败'
+    const message = error?.message || '图片谱暂时无法打开'
     uni.showModal({
-      title: '图片谱打开失败',
-      content: `${message}\n\n可尝试点击“内置谱”导入文本谱。`,
+      title: '图片谱未能打开',
+      content: `${message}\n\n你可以选择“导入”生成应用内曲谱详情。`,
       showCancel: false,
     })
   } finally {
@@ -177,7 +177,7 @@ async function importTextResource(ref: WebSearchReference) {
   }
   importingUrl.value = key
   try {
-    uni.showLoading({ title: '导入文本谱' })
+    uni.showLoading({ title: '导入曲谱' })
     const candidate = primaryCandidate.value
     const result = await importResourceTab({
       title: ref.title,
@@ -187,15 +187,15 @@ async function importTextResource(ref: WebSearchReference) {
       search_query: buildSearchQuery(ref),
     })
     uni.hideLoading()
-    uni.showToast({ title: '已导入内置谱', icon: 'success' })
+    uni.showToast({ title: '曲谱已导入', icon: 'success' })
     setTimeout(() => {
       uni.navigateTo({ url: `/pages/song-detail/index?id=${result.songId}` })
     }, 260)
   } catch (error: any) {
     uni.hideLoading()
     uni.showModal({
-      title: '文本谱导入失败',
-      content: error?.message || '没有解析到可用TXT/网页文本谱，可以换一个资源或使用图片谱。',
+      title: '导入未完成',
+      content: error?.message || '当前资源暂未解析出可用文本谱，你可以更换资源或查看图片谱。',
       showCancel: false,
     })
   } finally {
