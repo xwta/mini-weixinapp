@@ -19,11 +19,7 @@
 
     <view v-if="previewableRefs.length" class="resource-section">
       <view class="section-label">图片谱 · 先看谱面</view>
-      <view
-        v-for="(ref, index) in previewableRefs"
-        :key="`preview-${ref.url}-${index}`"
-        class="ref-preview-item"
-      >
+      <view v-for="(ref, index) in previewableRefs" :key="`preview-${ref.url}-${index}`" class="ref-preview-item">
         <image v-if="ref.thumbnail_url" class="ref-thumb" :src="ref.thumbnail_url" mode="aspectFill" @tap="openImageResource(ref)" />
         <view v-else class="ref-thumb ref-thumb--empty" @tap="openImageResource(ref)">图</view>
         <view class="ref-main" @tap="openImageResource(ref)">
@@ -45,11 +41,7 @@
 
     <view v-if="importableRefs.length" class="resource-section">
       <view class="section-label">文本谱 · 可转为应用内谱面</view>
-      <view
-        v-for="(ref, index) in importableRefs"
-        :key="`import-${ref.url}-${index}`"
-        class="ref-preview-item"
-      >
+      <view v-for="(ref, index) in importableRefs" :key="`import-${ref.url}-${index}`" class="ref-preview-item">
         <view class="ref-thumb ref-thumb--empty" @tap="importTextResource(ref)">谱</view>
         <view class="ref-main" @tap="importTextResource(ref)">
           <view class="ref-title-row">
@@ -70,11 +62,7 @@
 
     <view v-if="viewOnlyRefs.length" class="resource-section resource-section--muted">
       <view class="section-label">参考结果 · 可打开查找</view>
-      <view
-        v-for="(ref, index) in viewOnlyRefs"
-        :key="`view-${ref.url}-${index}`"
-        class="ref-preview-item ref-preview-item--muted"
-      >
+      <view v-for="(ref, index) in viewOnlyRefs" :key="`view-${ref.url}-${index}`" class="ref-preview-item ref-preview-item--muted">
         <view class="ref-thumb ref-thumb--empty ref-thumb--muted" @tap="openReferenceResource(ref)">搜</view>
         <view class="ref-main" @tap="openReferenceResource(ref)">
           <view class="ref-title-row">
@@ -94,12 +82,7 @@
     </view>
 
     <view v-if="!allReferences.length" class="result-list">
-      <view
-        v-for="(item, index) in candidates.slice(0, 5)"
-        :key="`${item.title}-${item.artist || ''}-${index}`"
-        class="result-item result-item--candidate"
-        @tap="emit('select', item)"
-      >
+      <view v-for="(item, index) in candidates.slice(0, 5)" :key="`${item.title}-${item.artist || ''}-${index}`" class="result-item result-item--candidate" @tap="emit('select', item)">
         <view class="rank">{{ index + 1 }}</view>
         <view class="song-main">
           <view class="song-title-row">
@@ -131,209 +114,72 @@ import { saveRecentImport } from '@/utils/recent'
 import type { ResourcePreviewResult } from '@/api/resourcePreview'
 import type { WebSearchReference, WebSongCandidate } from '@/api/webSearch'
 
-const props = withDefaults(defineProps<{
-  candidates: WebSongCandidate[]
-  sourceLabel?: string
-}>(), {
-  sourceLabel: '网络吉他谱搜索',
-})
-
-const emit = defineEmits<{
-  select: [candidate: WebSongCandidate]
-  searchAgain: []
-}>()
-
+const props = withDefaults(defineProps<{ candidates: WebSongCandidate[]; sourceLabel?: string }>(), { sourceLabel: '网络吉他谱搜索' })
+const emit = defineEmits<{ select: [candidate: WebSongCandidate]; searchAgain: [] }>()
 const openingUrl = ref('')
 const importingUrl = ref('')
-
 const allReferences = computed(() => props.candidates.flatMap((item) => item.tabReferences || item.references || []).slice(0, 14))
 const previewableRefs = computed(() => allReferences.value.filter((ref) => canPreviewImage(ref)).slice(0, 4))
 const importableRefs = computed(() => allReferences.value.filter((ref) => canImportText(ref)).slice(0, 5))
 const viewOnlyRefs = computed(() => allReferences.value.filter((ref) => !canPreviewImage(ref) && !canImportText(ref)).slice(0, 6))
 const primaryCandidate = computed(() => props.candidates[0])
-
 const noticeText = computed(() => {
   if (importableRefs.value.length && previewableRefs.value.length) return '图片谱用于查看原谱；文本谱可转成应用内谱面；参考结果可复制链接或尝试打开。'
   if (previewableRefs.value.length) return '当前结果以图片谱为主，建议先预览；需要应用内练习时可使用 AI 编配。'
   if (importableRefs.value.length) return '当前结果包含可转谱资源，点击“转谱”生成应用内曲谱详情。'
   return '当前展示的是曲谱搜索入口，可复制链接继续查找；也可以使用 AI 编配生成练习版。'
 })
-
-function getConfidenceText(candidate: WebSongCandidate) {
-  return `${Math.round((candidate.confidence || 0) * 100)}%`
-}
-
-function getTabCount(candidate: WebSongCandidate) {
-  return Number(candidate.arrangementHints?.tabReferenceCount || candidate.tabReferences?.length || 0)
-}
-
-function getTotalTabCount() {
-  return props.candidates.reduce((sum, item) => sum + getTabCount(item), 0) || allReferences.value.length || props.candidates.length
-}
-
-function getFallbackSummary(candidate: WebSongCandidate) {
-  return candidate.artist ? `识别到《${candidate.title}》 - ${candidate.artist}` : `识别到《${candidate.title}》`
-}
-
-function getResourceKey(ref: WebSearchReference) {
-  return ref.image_url || ref.thumbnail_url || ref.url || ref.title || ''
-}
-
-function getHostLabel(url = '') {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch (_error) {
-    return '网页'
-  }
-}
-
-function isImageSearchEntry(ref: WebSearchReference) {
-  const title = String(ref.title || '')
-  const provider = String(ref.provider || '')
-  const url = String(ref.url || '')
-  return /图片谱|百度图片|image/i.test(title) || provider.includes('image') || /image\.baidu\.com/.test(url)
-}
-
-function canPreviewImage(ref: WebSearchReference) {
-  return FEATURES.ENABLE_IMAGE_PREVIEW && Boolean(ref.previewable === true || ref.action_hint === 'preview' || isImageSearchEntry(ref))
-}
-
-function canImportText(ref: WebSearchReference) {
-  return FEATURES.ENABLE_TEXT_IMPORT && ref.importable === true && ref.action_hint === 'import'
-}
-
-function buildSearchQuery(ref: WebSearchReference) {
-  const candidate = primaryCandidate.value
-  const parts = [candidate?.title, candidate?.artist, ref.title]
-    .filter(Boolean)
-    .join(' ')
-    .replace(/百度图片[:：]?|百度搜索[:：]?|Bing搜索[:：]?|搜索入口|曲谱站搜索|网页谱|图片谱|TXT谱|文本谱/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  return parts || ref.title || candidate?.title || ''
-}
-
-function copyReferenceLink(url: string) {
-  uni.setClipboardData({
-    data: url,
-    success: () => uni.showToast({ title: '链接已复制', icon: 'none' }),
-  })
-}
-
-function tryOpenInWebview(ref: WebSearchReference, url: string) {
-  const encoded = encodeURIComponent(url)
-  uni.navigateTo({
-    url: `/pages/resource-webview/index?url=${encoded}&title=${encodeURIComponent(ref.title || '曲谱资源')}`,
-    fail: () => copyReferenceLink(url),
-    complete: () => {
-      setTimeout(() => { openingUrl.value = '' }, 500)
-    },
-  })
-}
-
-function openReferenceResource(ref: WebSearchReference) {
-  const url = ref.url || ref.image_url || ref.thumbnail_url || ''
-  if (!url) {
-    uni.showToast({ title: '资源链接为空', icon: 'none' })
-    return
-  }
-  openingUrl.value = getResourceKey(ref)
-  uni.showActionSheet({
-    itemList: ['复制链接', '尝试打开网页'],
-    success: (res) => {
-      if (res.tapIndex === 0) {
-        copyReferenceLink(url)
-        openingUrl.value = ''
-        return
-      }
-      tryOpenInWebview(ref, url)
-    },
-    fail: () => {
-      openingUrl.value = ''
-    },
-  })
-}
-
+function getConfidenceText(candidate: WebSongCandidate) { return `${Math.round((candidate.confidence || 0) * 100)}%` }
+function getTabCount(candidate: WebSongCandidate) { return Number(candidate.arrangementHints?.tabReferenceCount || candidate.tabReferences?.length || 0) }
+function getTotalTabCount() { return props.candidates.reduce((sum, item) => sum + getTabCount(item), 0) || allReferences.value.length || props.candidates.length }
+function getFallbackSummary(candidate: WebSongCandidate) { return candidate.artist ? `识别到《${candidate.title}》 - ${candidate.artist}` : `识别到《${candidate.title}》` }
+function getResourceKey(ref: WebSearchReference) { return ref.image_url || ref.thumbnail_url || ref.url || ref.title || '' }
+function getHostLabel(url = '') { try { return new URL(url).hostname.replace(/^www\./, '') } catch (_error) { return '网页' } }
+function isImageSearchEntry(ref: WebSearchReference) { const title = String(ref.title || ''); const provider = String(ref.provider || ''); const url = String(ref.url || ''); return /图片谱|百度图片|image/i.test(title) || provider.includes('image') || /image\.baidu\.com/.test(url) }
+function canPreviewImage(ref: WebSearchReference) { return FEATURES.ENABLE_IMAGE_PREVIEW && Boolean(ref.previewable === true || ref.action_hint === 'preview' || isImageSearchEntry(ref)) }
+function canImportText(ref: WebSearchReference) { return FEATURES.ENABLE_TEXT_IMPORT && ref.importable === true && ref.action_hint === 'import' }
+function buildSearchQuery(ref: WebSearchReference) { const candidate = primaryCandidate.value; const parts = [candidate?.title, candidate?.artist, ref.title].filter(Boolean).join(' ').replace(/百度图片[:：]?|百度搜索[:：]?|Bing搜索[:：]?|搜索入口|曲谱站搜索|网页谱|图片谱|TXT谱|文本谱/g, ' ').replace(/\s+/g, ' ').trim(); return parts || ref.title || candidate?.title || '' }
+function getImageSearchUrl(ref: WebSearchReference) { const query = `${buildSearchQuery(ref)} 吉他谱 图片谱`; return `https://image.baidu.com/search/index?tn=baiduimage&word=${encodeURIComponent(query)}` }
+function copyReferenceLink(url: string) { uni.setClipboardData({ data: url, success: () => uni.showToast({ title: '链接已复制', icon: 'none' }) }) }
+function tryOpenInWebview(ref: WebSearchReference, url: string) { const encoded = encodeURIComponent(url); uni.navigateTo({ url: `/pages/resource-webview/index?url=${encoded}&title=${encodeURIComponent(ref.title || '曲谱资源')}`, fail: () => copyReferenceLink(url), complete: () => { setTimeout(() => { openingUrl.value = '' }, 500) } }) }
+function openReferenceResource(ref: WebSearchReference) { const url = ref.url || ref.image_url || ref.thumbnail_url || ''; if (!url) { uni.showToast({ title: '资源链接为空', icon: 'none' }); return } openingUrl.value = getResourceKey(ref); uni.showActionSheet({ itemList: ['复制链接', '尝试打开网页'], success: (res) => { if (res.tapIndex === 0) { copyReferenceLink(url); openingUrl.value = ''; return } tryOpenInWebview(ref, url) }, fail: () => { openingUrl.value = '' } }) }
+function showImagePreviewFallback(ref: WebSearchReference) { const searchUrl = getImageSearchUrl(ref); uni.showActionSheet({ itemList: ['重新尝试预览', '复制图片搜索链接', '打开图片搜索页'], success: (res) => { if (res.tapIndex === 0) { openImageResource(ref); return } if (res.tapIndex === 1) { copyReferenceLink(searchUrl); return } tryOpenInWebview({ ...ref, title: `${buildSearchQuery(ref)} 图片谱` }, searchUrl) }, fail: () => {}, complete: () => { openingUrl.value = '' } }) }
 async function openImageResource(ref: WebSearchReference) {
   if (!canPreviewImage(ref)) return
   const key = getResourceKey(ref)
-  if (!key) {
-    uni.showToast({ title: '资源链接为空', icon: 'none' })
-    return
-  }
+  if (!key) { uni.showToast({ title: '资源链接为空', icon: 'none' }); return }
   openingUrl.value = key
   try {
     uni.showLoading({ title: '打开图片谱' })
-    const result = await previewResourceImage({
-      title: ref.title,
-      url: ref.url,
-      image_url: ref.image_url,
-      thumbnail_url: ref.thumbnail_url,
-      search_query: buildSearchQuery(ref),
-    })
+    const result = await previewResourceImage({ title: ref.title, url: ref.url, image_url: ref.image_url, thumbnail_url: ref.thumbnail_url, search_query: buildSearchQuery(ref) })
     await previewFromCloudResult(result, ref)
   } catch (_error: any) {
     uni.hideLoading()
-    uni.showModal({
-      title: '图片谱未能打开',
-      content: '当前图片源暂时不可访问。可以换一个资源，或使用 AI 编配生成练习版。',
-      showCancel: false,
-    })
+    showImagePreviewFallback(ref)
   } finally {
     openingUrl.value = ''
   }
 }
-
 async function importTextResource(ref: WebSearchReference) {
-  if (!canImportText(ref)) {
-    uni.showToast({ title: '该资源不适合转谱', icon: 'none' })
-    return
-  }
+  if (!canImportText(ref)) { uni.showToast({ title: '该资源不适合转谱', icon: 'none' }); return }
   const key = getResourceKey(ref)
-  if (!key) {
-    uni.showToast({ title: '资源链接为空', icon: 'none' })
-    return
-  }
+  if (!key) { uni.showToast({ title: '资源链接为空', icon: 'none' }); return }
   importingUrl.value = key
   try {
     uni.showLoading({ title: '生成谱面' })
     const candidate = primaryCandidate.value
-    const result = await importResourceTab({
-      title: ref.title,
-      song_title: candidate?.title || ref.title,
-      artist: candidate?.artist || '',
-      url: ref.url,
-      search_query: buildSearchQuery(ref),
-      importable: true,
-      action_hint: 'import',
-    })
-    saveRecentImport({
-      songId: result.songId,
-      title: result.title || candidate?.title || ref.title,
-      artist: result.artist_name || candidate?.artist || '',
-      source: result.sourceUrl || ref.source_site || ref.provider || '',
-    })
+    const result = await importResourceTab({ title: ref.title, song_title: candidate?.title || ref.title, artist: candidate?.artist || '', url: ref.url, search_query: buildSearchQuery(ref), importable: true, action_hint: 'import' })
+    saveRecentImport({ songId: result.songId, title: result.title || candidate?.title || ref.title, artist: result.artist_name || candidate?.artist || '', source: result.sourceUrl || ref.source_site || ref.provider || '' })
     uni.hideLoading()
     uni.showToast({ title: '谱面已生成', icon: 'success' })
-    setTimeout(() => {
-      uni.navigateTo({ url: `/pages/song-detail/index?id=${result.songId}` })
-    }, 260)
+    setTimeout(() => { uni.navigateTo({ url: `/pages/song-detail/index?id=${result.songId}` }) }, 260)
   } catch (_error: any) {
     uni.hideLoading()
-    uni.showModal({
-      title: '暂未生成谱面',
-      content: '这个资源没有命中可用文本谱。可以换一个“文本谱/可转谱”资源，或直接使用 AI 编配。',
-      confirmText: '知道了',
-      showCancel: false,
-    })
-  } finally {
-    importingUrl.value = ''
-  }
+    uni.showModal({ title: '暂未生成谱面', content: '这个资源没有命中可用文本谱。可以换一个“文本谱/可转谱”资源，或直接使用 AI 编配。', confirmText: '知道了', showCancel: false })
+  } finally { importingUrl.value = '' }
 }
-
 async function previewFromCloudResult(result: ResourcePreviewResult, ref: WebSearchReference) {
   const sourceUrl = result.sourceUrl || ref.url || ref.image_url || ref.thumbnail_url || ''
-
   // #ifdef MP-WEIXIN
   if (result.fileID && typeof wx !== 'undefined' && wx.cloud?.downloadFile) {
     try {
@@ -341,34 +187,18 @@ async function previewFromCloudResult(result: ResourcePreviewResult, ref: WebSea
       const tempFilePath = downloaded?.tempFilePath
       if (tempFilePath) {
         uni.hideLoading()
-        uni.previewImage({
-          urls: [tempFilePath],
-          current: tempFilePath,
-          fail: () => previewByTempUrl(result.tempFileURL, sourceUrl),
-        })
+        uni.previewImage({ urls: [tempFilePath], current: tempFilePath, fail: () => previewByTempUrl(result.tempFileURL, sourceUrl, ref) })
         return
       }
     } catch (_error) {}
   }
   // #endif
-
-  previewByTempUrl(result.tempFileURL, sourceUrl)
+  previewByTempUrl(result.tempFileURL, sourceUrl, ref)
 }
-
-function previewByTempUrl(tempFileURL: string, sourceUrl = '') {
-  if (!tempFileURL) {
-    uni.hideLoading()
-    if (sourceUrl) uni.setClipboardData({ data: sourceUrl })
-    return
-  }
+function previewByTempUrl(tempFileURL: string, sourceUrl = '', ref?: WebSearchReference) {
+  if (!tempFileURL) { uni.hideLoading(); if (sourceUrl) uni.setClipboardData({ data: sourceUrl }); if (ref) showImagePreviewFallback(ref); return }
   uni.hideLoading()
-  uni.previewImage({
-    urls: [tempFileURL],
-    current: tempFileURL,
-    fail: () => {
-      if (sourceUrl) uni.setClipboardData({ data: sourceUrl })
-    },
-  })
+  uni.previewImage({ urls: [tempFileURL], current: tempFileURL, fail: () => { if (sourceUrl) uni.setClipboardData({ data: sourceUrl }); if (ref) showImagePreviewFallback(ref) } })
 }
 </script>
 
