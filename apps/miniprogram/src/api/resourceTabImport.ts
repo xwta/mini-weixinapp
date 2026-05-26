@@ -9,6 +9,8 @@ export interface ResourceTabImportRequest {
   search_query?: string
   song_key?: string
   capo?: string
+  importable?: boolean
+  action_hint?: 'import' | 'preview' | 'view_only' | string
 }
 
 export interface ResourceTabImportResult {
