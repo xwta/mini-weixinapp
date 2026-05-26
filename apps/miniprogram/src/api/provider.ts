@@ -25,6 +25,8 @@ const RETRYABLE_PATTERNS = [
   /cloud function service error/i,
 ]
 
+const NO_RETRY_FUNCTIONS = new Set(['web-search'])
+
 function ensureCloudReady() {
   // #ifdef MP-WEIXIN
   if (typeof wx === 'undefined' || !wx.cloud || !wx.cloud.callFunction) {
@@ -60,12 +62,13 @@ function isRetryableError(error: any) {
 async function callFunctionWithRetry(functionName: string, data: Record<string, any>) {
   // #ifdef MP-WEIXIN
   let lastError: any = null
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  const maxAttempts = NO_RETRY_FUNCTIONS.has(functionName) ? 1 : 2
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       return await wx.cloud.callFunction({ name: functionName, data })
     } catch (error: any) {
       lastError = error
-      if (!isRetryableError(error) || attempt >= 1) break
+      if (!isRetryableError(error) || attempt >= maxAttempts - 1) break
       await sleep(260)
     }
   }
