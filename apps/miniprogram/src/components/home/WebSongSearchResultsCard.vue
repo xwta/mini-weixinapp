@@ -164,13 +164,6 @@ function getTotalTabCount() {
   return props.candidates.reduce((sum, item) => sum + getTabCount(item), 0) || allReferences.value.length || props.candidates.length
 }
 
-function getRefType(ref: WebSearchReference) {
-  if (ref.result_type === 'image' || ref.thumbnail_url || ref.previewable) return 'image'
-  if (ref.result_type === 'text' || ref.importable) return 'text'
-  if (ref.result_type === 'fallback') return 'fallback'
-  return 'web'
-}
-
 function getFallbackSummary(candidate: WebSongCandidate) {
   return candidate.artist ? `识别到《${candidate.title}》 - ${candidate.artist}` : `识别到《${candidate.title}》`
 }
@@ -180,15 +173,11 @@ function getResourceKey(ref: WebSearchReference) {
 }
 
 function canPreviewImage(ref: WebSearchReference) {
-  return FEATURES.ENABLE_IMAGE_PREVIEW && Boolean(ref.previewable || ref.action_hint === 'preview' || getRefType(ref) === 'image')
+  return FEATURES.ENABLE_IMAGE_PREVIEW && Boolean(ref.previewable === true || ref.action_hint === 'preview')
 }
 
 function canImportText(ref: WebSearchReference) {
-  if (!FEATURES.ENABLE_TEXT_IMPORT) return false
-  if (ref.importable === false || ref.action_hint === 'view_only') return false
-  if (canPreviewImage(ref)) return false
-  if (getRefType(ref) === 'fallback') return false
-  return Boolean(ref.importable || ref.action_hint === 'import' || getRefType(ref) === 'text')
+  return FEATURES.ENABLE_TEXT_IMPORT && ref.importable === true && ref.action_hint === 'import'
 }
 
 function buildSearchQuery(ref: WebSearchReference) {
