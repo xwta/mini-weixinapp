@@ -284,6 +284,21 @@ function getReliableLocalSongs(items: any[] = [], keywordText: string) {
   return items.filter((item) => isReliableLocalSong(item, keywordText))
 }
 
+function isSeedOnlySong(song: Song | any) {
+  return song?.has_tab === false || song?.source_type === 'seed' || song?.source_type === 'seed_bulk'
+}
+
+function getSongArtist(song: Song | any) {
+  return String(song?.artist_name || song?.author_name || song?.artist || '').trim()
+}
+
+function buildSongAwareSearchText(song: Song | any, fallbackText: string) {
+  const title = String(song?.title || fallbackText || '').trim()
+  const artist = getSongArtist(song)
+  const base = [title, artist].filter(Boolean).join(' ').trim()
+  return base || fallbackText
+}
+
 function detectRoute(text: string): ModeValue {
   if (activeMode.value === 'song' || activeMode.value === 'chord' || activeMode.value === 'practice') return activeMode.value
   if (/配和弦|和弦|歌词/.test(text) && text.length > 20) return 'chord'
@@ -361,7 +376,7 @@ function seedSongToCandidate(song: Song | any): WebSongCandidate {
     album: song.album || '',
     confidence: Math.min(0.92, Math.max(0.62, Number(song._search_score || 78) / 100)),
     source: song.source_type || 'seed',
-    summary: `热门曲库已识别《${song.title || '这首歌'}》${song.artist_name ? ` - ${song.artist_name}` : ''}，可查看曲谱资源或使用 AI 编配生成练习版。`,
+    summary: `热门曲库已识别《${song.title || '这首歌'}》${song.artist_name ? ` - ${song.artist_name}` : ''}，可继续搜索曲谱资源或使用 AI 编配生成练习版。`,
     references: song.generation_source?.references || [],
     tabReferences: song.generation_source?.tabReferences || [],
     arrangementHints: song.generation_source?.arrangementHints || song.content_json?.arrangementHints || {},
@@ -486,14 +501,11 @@ async function sendMessage() {
         return
       }
       const first = reliableItems[0] as Song | any
-      if (first.has_tab === false || first.source_type === 'seed' || first.source_type === 'seed_bulk') {
-        webCandidates.value = reliableItems
-          .filter((item: any) => item.has_tab === false || item.source_type === 'seed' || item.source_type === 'seed_bulk')
-          .map(seedSongToCandidate)
-        webCandidate.value = null
-        webResultLabel.value = '热门歌曲索引'
-        await streamAiMessage(`已匹配 ${webCandidates.value.length} 个热门歌曲结果。可以查看曲谱资源或使用 AI 编配。`)
-        nextTick(() => { scrollTop.value += 560 })
+      if (isSeedOnlySong(first)) {
+        const webKeyword = buildSongAwareSearchText(first, text)
+        const artist = getSongArtist(first)
+        await streamAiMessage(`已识别《${first.title || text}》${artist ? ` - ${artist}` : ''}，继续在小程序内搜索可查看的吉他谱资源。`)
+        await lookupTabCandidate(webKeyword)
         return
       }
       await streamAiMessage(`找到 ${reliableItems.length} 首相关曲谱。最匹配的是《${first.title}》，可以打开查看或开始练习。`)
