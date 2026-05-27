@@ -18,10 +18,7 @@ const DEFAULT_PROGRESSIONS = {
   F: ['F', 'C', 'Dm', 'Bb'],
 }
 
-function reviewContent(text = '') {
-  return !bannedWords.some((word) => String(text || '').includes(word))
-}
-
+function reviewContent(text = '') { return !bannedWords.some((word) => String(text || '').includes(word)) }
 function normalizeText(input) {
   if (!input) return ''
   if (typeof input === 'string') return input
@@ -36,7 +33,6 @@ function normalizeText(input) {
   }
   return String(input)
 }
-
 function extractJsonString(rawText = '') {
   const fenced = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
   if (fenced?.[1]) return fenced[1].trim()
@@ -45,23 +41,18 @@ function extractJsonString(rawText = '') {
   if (firstBrace >= 0 && lastBrace > firstBrace) return rawText.slice(firstBrace, lastBrace + 1)
   return rawText.trim()
 }
-
 function sanitizeReferences(references = []) {
-  return (Array.isArray(references) ? references : [])
-    .slice(0, 8)
-    .map((item) => ({
-      title: String(item?.title || '').slice(0, 120),
-      url: String(item?.url || '').slice(0, 500),
-      snippet: String(item?.snippet || '').slice(0, 180),
-      category: String(item?.category || '').slice(0, 40),
-      provider: String(item?.provider || '').slice(0, 40),
-      tab_score: Number(item?.tab_score || 0),
-      result_type: String(item?.result_type || '').slice(0, 40),
-      source_site: String(item?.source_site || '').slice(0, 80),
-    }))
-    .filter((item) => item.title || item.url || item.snippet)
+  return (Array.isArray(references) ? references : []).slice(0, 8).map((item) => ({
+    title: String(item?.title || '').slice(0, 120),
+    url: String(item?.url || '').slice(0, 500),
+    snippet: String(item?.snippet || '').slice(0, 180),
+    category: String(item?.category || '').slice(0, 40),
+    provider: String(item?.provider || '').slice(0, 40),
+    tab_score: Number(item?.tab_score || 0),
+    result_type: String(item?.result_type || '').slice(0, 40),
+    source_site: String(item?.source_site || '').slice(0, 80),
+  })).filter((item) => item.title || item.url || item.snippet)
 }
-
 function sanitizeHints(hints = {}) {
   return {
     possibleKeys: Array.isArray(hints.possibleKeys) ? hints.possibleKeys.map(String).slice(0, 4) : [],
@@ -72,7 +63,6 @@ function sanitizeHints(hints = {}) {
     textReferenceCount: Number(hints.textReferenceCount || 0),
   }
 }
-
 function buildWebContext(event = {}) {
   const context = event.web_context || {}
   return {
@@ -86,12 +76,13 @@ function buildWebContext(event = {}) {
     arrangementHints: sanitizeHints(context.arrangementHints),
   }
 }
-
 function resolveOutputType(event = {}) {
+  if (event.type === 'web_chords') return 'both'
   const type = String(event.tab_output_type || event.output_type || event.web_context?.preferred_output_type || '').toLowerCase()
-  return type === 'image' ? 'image' : 'txt'
+  if (type === 'image') return 'image'
+  if (type === 'both') return 'both'
+  return 'txt'
 }
-
 function normalizeKey(key = 'C') {
   const raw = String(key || 'C').trim().replace('♭', 'b').replace('＃', '#')
   if (DEFAULT_PROGRESSIONS[raw]) return raw
@@ -102,18 +93,18 @@ function normalizeKey(key = 'C') {
   if (/^F/i.test(raw)) return 'F'
   return 'C'
 }
-
-function uniqueChords(chords = []) {
-  return Array.from(new Set((Array.isArray(chords) ? chords : []).map((item) => String(item || '').trim()).filter(Boolean))).slice(0, 10)
-}
-
+function uniqueChords(chords = []) { return Array.from(new Set((Array.isArray(chords) ? chords : []).map((item) => String(item || '').trim()).filter(Boolean))).slice(0, 10) }
 function chooseChords(event = {}, webContext = {}) {
   const hinted = uniqueChords(webContext.arrangementHints?.possibleChords || [])
   if (hinted.length >= 4) return hinted.slice(0, 8)
   const key = normalizeKey(event.song_key || webContext.arrangementHints?.possibleKeys?.[0] || 'C')
   return DEFAULT_PROGRESSIONS[key] || DEFAULT_PROGRESSIONS.C
 }
-
+function outputName(type = 'txt') {
+  if (type === 'image') return '图片六线谱'
+  if (type === 'both') return '完整双谱'
+  return 'TXT弹唱谱'
+}
 function buildFallbackTab(event = {}, webContext = {}, reason = 'fallback') {
   const title = String(webContext.title || event.title || event.prompt || '目标歌曲').trim() || '目标歌曲'
   const artist = String(webContext.artist || event.artist || '').trim()
@@ -122,8 +113,9 @@ function buildFallbackTab(event = {}, webContext = {}, reason = 'fallback') {
   const main = chords.slice(0, 4).join(' ')
   const verse = chords.slice().reverse().slice(0, 4).join(' ')
   const bridge = chords.length >= 6 ? chords.slice(2, 6).join(' ') : `${chords[1] || 'G'} ${chords[2] || 'Am'} ${chords[3] || 'F'} ${chords[0] || 'C'}`
+  const type = resolveOutputType(event)
   return {
-    title: `${title} AI${resolveOutputType(event) === 'image' ? '图片六线谱' : 'TXT弹唱谱'}`,
+    title: `${title} AI${outputName(type)}`,
     style: '弹唱',
     song_key: key,
     bpm: Number(event.bpm || 86),
@@ -148,12 +140,11 @@ function buildFallbackTab(event = {}, webContext = {}, reason = 'fallback') {
       artist ? `先按《${title}》${artist} 的听感找速度，再用本谱做简化练习。` : `先按《${title}》的听感找速度，再用本谱做简化练习。`,
       '先只练左手换和弦，每个和弦 4 拍。',
       '右手节奏稳定后，再尝试加入弱拍轻扫。',
-      reason === 'model_error' ? '当前为模型异常后的本地兜底谱，可作为练习草稿继续手动调整。' : '这是 AI 生成的简化练习谱，适合快速起弹。',
+      reason === 'model_error' ? '当前为模型异常后的本地兜底谱，可作为练习草稿继续手动调整。' : '已同时生成 TXT 谱和图片六线谱，适合先看谱再练习。',
     ],
     generationMode: reason,
   }
 }
-
 function normalizeSectionLines(lines = []) {
   return lines.map((line) => {
     if (!line) return null
@@ -161,12 +152,9 @@ function normalizeSectionLines(lines = []) {
     return { chordLine: String(line.chordLine || line.chord || ''), lyricLine: String(line.lyricLine || line.lyric || line.text || '').trim() }
   }).filter((line) => line && line.lyricLine)
 }
-
 function normalizeSongPayload(payload = {}, fallback = {}) {
   const fallbackTab = fallback.fallbackTab || buildFallbackTab({}, {}, 'payload_fallback')
-  const sections = Array.isArray(payload.sections)
-    ? payload.sections.map((section) => ({ name: String(section?.name || '正文'), lines: normalizeSectionLines(section?.lines || []) })).filter((section) => section.lines.length)
-    : []
+  const sections = Array.isArray(payload.sections) ? payload.sections.map((section) => ({ name: String(section?.name || '正文'), lines: normalizeSectionLines(section?.lines || []) })).filter((section) => section.lines.length) : []
   const chords = uniqueChords(payload.chords).length ? uniqueChords(payload.chords) : uniqueChords(fallbackTab.chords)
   const practiceTips = Array.isArray(payload.practiceTips) && payload.practiceTips.length ? payload.practiceTips.map(String).slice(0, 4) : fallbackTab.practiceTips
   return {
@@ -183,28 +171,11 @@ function normalizeSongPayload(payload = {}, fallback = {}) {
     generationMode: payload.generationMode || fallbackTab.generationMode || 'ai',
   }
 }
-
-function sectionsToRawText(sections = []) {
-  return sections.map((section) => {
-    const lines = section.lines.map((line) => line.chordLine ? `${line.chordLine}\n${line.lyricLine}` : line.lyricLine).join('\n')
-    return `[${section.name}]\n${lines}`
-  }).join('\n\n')
-}
-
+function sectionsToRawText(sections = []) { return sections.map((section) => `[${section.name}]\n${section.lines.map((line) => line.chordLine ? `${line.chordLine}\n${line.lyricLine}` : line.lyricLine).join('\n')}`).join('\n\n') }
 function buildSixLineBlock(chordLine = '', lyricLine = '') {
   const chords = String(chordLine || '').trim() || 'C G Am F'
-  return [
-    'e|----------------|----------------|',
-    'B|------1---------|------0---------|',
-    'G|----0---0-------|----0---0-------|',
-    'D|--2-------------|--0-------------|',
-    'A|3---------------|2---------------|',
-    'E|----------------|3---------------|',
-    `   ${chords}`,
-    `   ${String(lyricLine || '').slice(0, 32)}`,
-  ]
+  return ['e|----------------|----------------|', 'B|------1---------|------0---------|', 'G|----0---0-------|----0---0-------|', 'D|--2-------------|--0-------------|', 'A|3---------------|2---------------|', 'E|----------------|3---------------|', `   ${chords}`, `   ${String(lyricLine || '').slice(0, 32)}`]
 }
-
 function buildImageTabPages(sections = [], meta = {}) {
   const pages = []
   let blocks = []
@@ -212,38 +183,27 @@ function buildImageTabPages(sections = [], meta = {}) {
     blocks.push({ type: 'section', text: section.name })
     section.lines.forEach((line) => {
       blocks.push({ type: 'tab', lines: buildSixLineBlock(line.chordLine, line.lyricLine) })
-      if (blocks.length >= 7) {
-        pages.push({ title: `${meta.title || '图片六线谱'} · 第${pages.length + 1}页`, blocks })
-        blocks = []
-      }
+      if (blocks.length >= 7) { pages.push({ title: `${meta.title || '图片六线谱'} · 第${pages.length + 1}页`, blocks }); blocks = [] }
     })
   })
   if (blocks.length) pages.push({ title: `${meta.title || '图片六线谱'} · 第${pages.length + 1}页`, blocks })
   return pages.length ? pages : [{ title: `${meta.title || '图片六线谱'} · 第1页`, blocks: [{ type: 'tab', lines: buildSixLineBlock('C G Am F', 'AI 生成图片六线谱') }] }]
 }
-
 function buildSongPrompt(event) {
   const webContext = buildWebContext(event)
   const isWebChords = event.type === 'web_chords'
   const outputType = resolveOutputType(event)
   const refLines = [...webContext.tabReferences, ...webContext.references].slice(0, 10).map((item, index) => `${index + 1}. ${item.title} ${item.snippet}`.trim()).join('\n')
   const hints = webContext.arrangementHints || {}
-  const hintLines = [
-    hints.possibleKeys?.length ? `疑似调式：${hints.possibleKeys.join('、')}` : '',
-    hints.possibleCapos?.length ? `疑似变调夹：${hints.possibleCapos.join('、')}` : '',
-    hints.possibleChords?.length ? `线索中出现的和弦：${hints.possibleChords.join('、')}` : '',
-    hints.tabReferenceCount ? `曲谱线索数量：${hints.tabReferenceCount}` : '',
-  ].filter(Boolean).join('\n')
-  const rules = `只输出 JSON。字段必须包含 title, style, song_key, bpm, capo, difficulty, strumming, chords, sections, practiceTips。sections 每个元素包含 name 和 lines，lines 每行包含 chordLine 与 lyricLine。不要复制完整歌词，不要复刻第三方曲谱，不要声称官方或原版。请生成可练习的 AI 简化曲谱，lyricLine 使用段落提示、演唱位置提示或短占位提示。用户选择的输出类型是：${outputType === 'image' ? '图片六线谱' : 'TXT弹唱谱'}。`
-  if (isWebChords) return `${rules}\n歌名：${webContext.title || event.title || ''}\n歌手：${webContext.artist || event.artist || ''}\n难度：${event.difficulty || '新手'}\n目标调式：${event.song_key || 'C'}\n搜索摘要：${webContext.summary || ''}\n编配线索：\n${hintLines || '无'}\n参考资源：\n${refLines || '无'}\n请生成一份新手能练的 ${outputType === 'image' ? '图片六线谱草稿' : 'TXT弹唱谱'}。`
+  const hintLines = [hints.possibleKeys?.length ? `疑似调式：${hints.possibleKeys.join('、')}` : '', hints.possibleCapos?.length ? `疑似变调夹：${hints.possibleCapos.join('、')}` : '', hints.possibleChords?.length ? `线索中出现的和弦：${hints.possibleChords.join('、')}` : '', hints.tabReferenceCount ? `曲谱线索数量：${hints.tabReferenceCount}` : ''].filter(Boolean).join('\n')
+  const rules = `只输出 JSON。字段必须包含 title, style, song_key, bpm, capo, difficulty, strumming, chords, sections, practiceTips。sections 每个元素包含 name 和 lines，lines 每行包含 chordLine 与 lyricLine。不要复制完整歌词，不要复刻第三方曲谱，不要声称官方或原版。请生成可练习的 AI 简化曲谱，lyricLine 使用段落提示、演唱位置提示或短占位提示。输出类型：${outputType === 'both' ? '同时生成TXT谱和图片六线谱所需结构' : outputName(outputType)}。`
+  if (isWebChords) return `${rules}\n歌名：${webContext.title || event.title || ''}\n歌手：${webContext.artist || event.artist || ''}\n难度：${event.difficulty || '新手'}\n目标调式：${event.song_key || 'C'}\n搜索摘要：${webContext.summary || ''}\n编配线索：\n${hintLines || '无'}\n参考资源：\n${refLines || '无'}\n请生成一份新手能练的完整双谱。`
   return `${rules}\n模式：${event.type || 'songwriting'}\n风格：${event.style || '民谣'}\n难度：${event.difficulty || '新手'}\n调式：${event.song_key || 'C'}\n用户输入：${event.prompt || event.lyrics || ''}`
 }
-
 function resolveEnvId(wxContext) { return process.env.TCB_ENV || process.env.CLOUDBASE_ENV_ID || process.env.SCF_NAMESPACE || wxContext?.ENV || undefined }
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)) }
 function getErrorCode(error) { return String(error?.code || error?.statusCode || '') }
 function withTimeout(promise, ms) { return Promise.race([promise, new Promise((_r, reject) => setTimeout(() => reject(new Error('AI模型响应超时，已使用本地谱面兜底')), ms))]) }
-
 async function callCloudbaseModel(event, wxContext) {
   const envId = resolveEnvId(wxContext)
   const app = envId ? tcb.init({ env: envId }) : tcb.init()
@@ -252,10 +212,7 @@ async function callCloudbaseModel(event, wxContext) {
   for (const provider of providerCandidates) {
     const model = app.ai().createModel(provider)
     for (let attempt = 1; attempt <= 2; attempt += 1) {
-      try {
-        const result = await withTimeout(model.generateText({ model: event.model || 'hy3-preview', messages: [{ role: 'user', content: buildSongPrompt(event) }], temperature: 0.55 }), 9000)
-        return normalizeText(result)
-      } catch (error) {
+      try { return normalizeText(await withTimeout(model.generateText({ model: event.model || 'hy3-preview', messages: [{ role: 'user', content: buildSongPrompt(event) }], temperature: 0.55 }), 9000)) } catch (error) {
         lastError = error
         if (getErrorCode(error) === '429' && attempt < 2) { await sleep(450 * attempt); continue }
         if (getErrorCode(error) === '429') break
@@ -264,12 +221,7 @@ async function callCloudbaseModel(event, wxContext) {
   }
   throw lastError || new Error('AI 模型调用失败')
 }
-
-async function getCurrentUser(openid) {
-  const result = await users.where({ openid }).limit(1).get()
-  return result.data[0] || null
-}
-
+async function getCurrentUser(openid) { const result = await users.where({ openid }).limit(1).get(); return result.data[0] || null }
 async function ensureUser(openid, now) {
   let user = await getCurrentUser(openid)
   if (user) return user
@@ -277,7 +229,6 @@ async function ensureUser(openid, now) {
   const created = await users.add({ data: seed })
   return { _id: created._id, ...seed }
 }
-
 exports.main = async (event = {}) => {
   const wxContext = cloud.getWXContext()
   const openid = wxContext.OPENID || event.openid || 'debug-openid'
@@ -287,30 +238,26 @@ exports.main = async (event = {}) => {
   const tabOutputType = resolveOutputType(event)
   const sourceText = String(event.prompt || event.lyrics || event.title || webContext.title || webContext.summary || '')
   if (!reviewContent(sourceText)) return { code: 403, message: '内容审核未通过，请调整后重试' }
-
   const user = await ensureUser(openid, now)
   if ((user.generation_quota || 0) <= 0 && user.membership_type === 'free') return { code: 403, message: '今日免费额度已用完，请明日再试' }
-
   const fallbackTab = buildFallbackTab(event, webContext, 'local_fallback')
   let parsed = fallbackTab
   let modelStatus = 'fallback_not_called'
   let modelErrorMessage = ''
-
   try {
     const rawModelText = await callCloudbaseModel(event, wxContext)
-    const jsonText = extractJsonString(rawModelText)
-    parsed = JSON.parse(jsonText)
+    parsed = JSON.parse(extractJsonString(rawModelText))
     modelStatus = 'model_success'
   } catch (error) {
     modelStatus = 'local_fallback'
     modelErrorMessage = error?.message || '模型输出不可用，已使用本地规则生成'
     parsed = buildFallbackTab(event, webContext, error?.message ? 'model_error' : 'parse_error')
   }
-
   const normalized = normalizeSongPayload(parsed, { title: fallbackTab.title, style: fallbackTab.style, song_key: fallbackTab.song_key, capo: fallbackTab.capo, difficulty: fallbackTab.difficulty, strumming: fallbackTab.strumming, fallbackTab })
   const rawText = sectionsToRawText(normalized.sections)
-  const imageTabPages = tabOutputType === 'image' ? buildImageTabPages(normalized.sections, normalized) : []
+  const imageTabPages = (tabOutputType === 'image' || tabOutputType === 'both') ? buildImageTabPages(normalized.sections, normalized) : []
   const isPublic = Boolean(event.is_public) && !isWebChords
+  const sourceType = isWebChords ? (tabOutputType === 'both' ? 'ai_web_dual_tab' : tabOutputType === 'image' ? 'ai_web_image_tab' : 'ai_web_txt') : (tabOutputType === 'both' ? 'ai_dual_tab' : tabOutputType === 'image' ? 'ai_image_tab' : 'ai_txt')
   const data = {
     user_openid: openid,
     user_id: user._id,
@@ -324,11 +271,11 @@ exports.main = async (event = {}) => {
     capo: normalized.capo,
     difficulty: normalized.difficulty,
     strumming: normalized.strumming,
-    tags: isWebChords ? [`AI生成${tabOutputType === 'image' ? '图片六线谱' : 'TXT谱'}`, '网络搜索', '吉他谱线索', normalized.style] : [`AI生成${tabOutputType === 'image' ? '图片六线谱' : 'TXT谱'}`, normalized.style],
+    tags: isWebChords ? ['AI生成完整曲谱', 'TXT谱', '图片六线谱', '网络搜索', normalized.style] : ['AI生成完整曲谱', 'TXT谱', '图片六线谱', normalized.style],
     raw_text: rawText,
     content_json: { sections: normalized.sections, chords: normalized.chords, practiceTips: normalized.practiceTips, copyrightNotice: isWebChords ? 'AI 生成的简化曲谱，非官方曲谱。' : '', arrangementHints: isWebChords ? webContext.arrangementHints : null, modelStatus, modelErrorMessage, tabOutputType, imageTabPages },
-    generation_source: isWebChords ? { type: tabOutputType === 'image' ? 'ai_image_tab_from_search' : 'ai_txt_from_search', provider: webContext.source || 'web', confidence: webContext.confidence || 0, summary: webContext.summary || '', references: webContext.references, tabReferences: webContext.tabReferences, arrangementHints: webContext.arrangementHints, modelStatus, tabOutputType } : { type: tabOutputType === 'image' ? 'ai_image_tab' : 'ai_txt', modelStatus, tabOutputType },
-    source_type: isWebChords ? (tabOutputType === 'image' ? 'ai_web_image_tab' : 'ai_web_txt') : (tabOutputType === 'image' ? 'ai_image_tab' : 'ai_txt'),
+    generation_source: isWebChords ? { type: 'ai_dual_tab_from_search', provider: webContext.source || 'web', confidence: webContext.confidence || 0, summary: webContext.summary || '', references: webContext.references, tabReferences: webContext.tabReferences, arrangementHints: webContext.arrangementHints, modelStatus, tabOutputType } : { type: sourceType, modelStatus, tabOutputType },
+    source_type: sourceType,
     edit_mode: 'ai',
     has_tab: true,
     is_public: isPublic,
@@ -342,12 +289,10 @@ exports.main = async (event = {}) => {
     created_at: now,
     updated_at: now,
   }
-
   const songResult = await songs.add({ data })
   const nextGenerationQuota = Math.max(0, Number(user.generation_quota || 0) - 1)
   const nextTotalGenerated = Number(user.total_generated || 0) + 1
   const nextWorksCount = Number(user.works_count || 0) + 1
   await users.doc(user._id).update({ data: { generation_quota: _.inc(-1), total_generated: _.inc(1), works_count: _.inc(1), updated_at: now } })
-
   return { code: 0, data: { songId: songResult._id, title: data.title, style: data.style, song_key: data.song_key, bpm: data.bpm, capo: data.capo, difficulty: data.difficulty, strumming: data.strumming, chords: normalized.chords, sections: normalized.sections, practiceTips: normalized.practiceTips, source_type: data.source_type, tabOutputType, imageTabPages, modelStatus, modelErrorMessage, user: { id: user._id, generation_quota: nextGenerationQuota, total_generated: nextTotalGenerated, works_count: nextWorksCount, membership_type: user.membership_type || 'free' } } }
 }
