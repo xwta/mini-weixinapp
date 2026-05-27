@@ -18,7 +18,6 @@ const DEFAULT_PROGRESSIONS = {
   F: ['F', 'C', 'Dm', 'Bb'],
   Am: ['Am', 'G', 'F', 'E'],
 }
-
 const PROFILE_SECTIONS = ['intro', 'verseA', 'verseB', 'chorus', 'bridge', 'outro']
 const SECTION_NAMES = { intro: '前奏', verseA: '主歌A', verseB: '主歌B', chorus: '副歌', bridge: '桥段/间奏', outro: '尾奏' }
 const SECTION_TIPS = {
@@ -29,66 +28,40 @@ const SECTION_TIPS = {
   bridge: '间奏可用分解和弦，作为回副歌的过渡',
   outro: '尾奏放慢，最后一个和弦自然延音',
 }
-
 const CHORD_SHAPES = {
   C: ['x', '3', '2', '0', '1', '0'], G: ['3', '2', '0', '0', '0', '3'], D: ['x', 'x', '0', '2', '3', '2'], A: ['x', '0', '2', '2', '2', '0'], E: ['0', '2', '2', '1', '0', '0'], F: ['1', '3', '3', '2', '1', '1'],
   Am: ['x', '0', '2', '2', '1', '0'], Em: ['0', '2', '2', '0', '0', '0'], Dm: ['x', 'x', '0', '2', '3', '1'], Bm: ['x', '2', '4', '4', '3', '2'], 'F#m': ['2', '4', '4', '2', '2', '2'], 'C#m': ['x', '4', '6', '6', '5', '4'],
   Bb: ['x', '1', '3', '3', '3', '1'], Ab: ['4', '6', '6', '5', '4', '4'], Eb: ['x', '6', '8', '8', '6', '6'],
 }
 
-function profile(title, artist, aliases, key, capo, bpm, strumming, chords, progressions) {
-  return { title, artist, aliases, key, capo, bpm, strumming, chords, progressions, source: 'built_in_song_profile', matchLevel: 'verified_builtin', verified: true }
+function p(title, artist, aliases, key, capo, bpm, strumming, chords, progressions) {
+  return { title, artist, aliases, key, capo, bpm, strumming, chords, progressions, verified: true, source: 'built_in_song_profile', matchLevel: 'verified_builtin' }
 }
-
 const BUILT_IN_PROFILES = [
-  profile('成都', '赵雷', ['成都', '赵雷成都'], 'C', '2品', 76, '下 下上 空上 下上', ['C', 'G', 'Am', 'Em', 'F'], {
-    intro: ['C', 'G', 'Am', 'Em', 'F', 'C', 'F', 'G'], verseA: ['C', 'G', 'Am', 'Em', 'F', 'C', 'F', 'G'], verseB: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], chorus: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], bridge: ['Am', 'Em', 'F', 'C', 'F', 'G', 'C', 'C'], outro: ['F', 'G', 'C', 'C'],
-  }),
-  profile('晴天', '周杰伦', ['晴天', '周杰伦晴天'], 'G', '0品', 92, '下 下上 上下上', ['G', 'D', 'Em', 'C', 'Am'], {
-    intro: ['G', 'D', 'Em', 'C'], verseA: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'C'], verseB: ['Am', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], chorus: ['C', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], bridge: ['Em', 'D', 'C', 'G', 'Am', 'D', 'G', 'G'], outro: ['C', 'D', 'G', 'G'],
-  }),
-  profile('海阔天空', 'Beyond', ['海阔天空', 'beyond海阔天空'], 'G', '0品', 78, '下 下上 上下上', ['G', 'D', 'Em', 'C', 'Am'], {
-    intro: ['G', 'D', 'Em', 'C'], verseA: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'D'], verseB: ['Am', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], chorus: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'D'], bridge: ['Em', 'D', 'C', 'G', 'Am', 'D', 'G', 'G'], outro: ['C', 'D', 'G', 'G'],
-  }),
-  profile('平凡之路', '朴树', ['平凡之路', '朴树平凡之路'], 'G', '0品', 84, '下 下上 空上 下上', ['G', 'D', 'Em', 'C'], {
-    intro: ['G', 'D', 'Em', 'C'], verseA: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'C'], verseB: ['C', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], chorus: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'C'], bridge: ['Em', 'D', 'C', 'G', 'C', 'D', 'G', 'G'], outro: ['C', 'D', 'G', 'G'],
-  }),
-  profile('半壶纱', '刘珂矣', ['半壶纱', '刘珂矣半壶纱'], 'Am', '0品', 72, '下 下上 上下上', ['Am', 'G', 'F', 'E', 'Dm'], {
-    intro: ['Am', 'G', 'F', 'E'], verseA: ['Am', 'G', 'F', 'E', 'Am', 'G', 'F', 'E'], verseB: ['F', 'G', 'Am', 'Am', 'F', 'G', 'E', 'E'], chorus: ['Am', 'G', 'F', 'E', 'Am', 'G', 'F', 'E'], bridge: ['Dm', 'G', 'C', 'Am', 'F', 'E', 'Am', 'Am'], outro: ['F', 'E', 'Am', 'Am'],
-  }),
-  profile('夜空中最亮的星', '逃跑计划', ['夜空中最亮的星', '逃跑计划夜空中最亮的星'], 'G', '0品', 86, '下 下上 上下上', ['G', 'D', 'Em', 'C'], {
-    intro: ['G', 'D', 'Em', 'C'], verseA: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'C'], verseB: ['C', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], chorus: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'D'], bridge: ['Em', 'D', 'C', 'G', 'C', 'D', 'G', 'G'], outro: ['C', 'D', 'G', 'G'],
-  }),
-  profile('蓝莲花', '许巍', ['蓝莲花', '许巍蓝莲花'], 'G', '0品', 82, '下 下上 空上 下上', ['G', 'D', 'Em', 'C'], {
-    intro: ['G', 'D', 'Em', 'C'], verseA: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'C'], verseB: ['C', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], chorus: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'D'], bridge: ['Em', 'D', 'C', 'G', 'C', 'D', 'G', 'G'], outro: ['C', 'D', 'G', 'G'],
-  }),
-  profile('曾经的你', '许巍', ['曾经的你', '许巍曾经的你'], 'G', '0品', 92, '下 下上 上下上', ['G', 'D', 'Em', 'C'], {
-    intro: ['G', 'D', 'Em', 'C'], verseA: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'D'], verseB: ['C', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], chorus: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'D'], bridge: ['Em', 'D', 'C', 'G', 'C', 'D', 'G', 'G'], outro: ['C', 'D', 'G', 'G'],
-  }),
-  profile('董小姐', '宋冬野', ['董小姐', '宋冬野董小姐'], 'C', '0品', 78, '下 下上 空上 下上', ['C', 'G', 'Am', 'F'], {
-    intro: ['C', 'G', 'Am', 'F'], verseA: ['C', 'G', 'Am', 'F', 'C', 'G', 'F', 'F'], verseB: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], chorus: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], bridge: ['Am', 'G', 'F', 'C', 'F', 'G', 'C', 'C'], outro: ['F', 'G', 'C', 'C'],
-  }),
-  profile('安和桥', '宋冬野', ['安和桥', '宋冬野安和桥'], 'C', '3品', 70, '下 下上 空上 下上', ['C', 'G', 'Am', 'F'], {
-    intro: ['C', 'G', 'Am', 'F'], verseA: ['C', 'G', 'Am', 'F', 'C', 'G', 'F', 'F'], verseB: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], chorus: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], bridge: ['Am', 'G', 'F', 'C', 'F', 'G', 'C', 'C'], outro: ['F', 'G', 'C', 'C'],
-  }),
-  profile('稻香', '周杰伦', ['稻香', '周杰伦稻香'], 'C', '0品', 86, '下 下上 上下上', ['C', 'G', 'Am', 'F'], {
-    intro: ['C', 'G', 'Am', 'F'], verseA: ['C', 'G', 'Am', 'F', 'C', 'G', 'F', 'F'], verseB: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], chorus: ['C', 'G', 'Am', 'F', 'C', 'G', 'F', 'G'], bridge: ['Am', 'G', 'F', 'C', 'F', 'G', 'C', 'C'], outro: ['F', 'G', 'C', 'C'],
-  }),
-  profile('演员', '薛之谦', ['演员', '薛之谦演员'], 'C', '0品', 78, '下 下上 空上 下上', ['C', 'G', 'Am', 'F', 'Em'], {
-    intro: ['C', 'G', 'Am', 'F'], verseA: ['C', 'G', 'Am', 'Em', 'F', 'C', 'F', 'G'], verseB: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], chorus: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], bridge: ['Am', 'Em', 'F', 'C', 'F', 'G', 'C', 'C'], outro: ['F', 'G', 'C', 'C'],
-  }),
+  p('成都', '赵雷', ['成都', '赵雷成都'], 'C', '2品', 76, '下 下上 空上 下上', ['C', 'G', 'Am', 'Em', 'F'], { intro: ['C', 'G', 'Am', 'Em', 'F', 'C', 'F', 'G'], verseA: ['C', 'G', 'Am', 'Em', 'F', 'C', 'F', 'G'], verseB: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], chorus: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], bridge: ['Am', 'Em', 'F', 'C', 'F', 'G', 'C', 'C'], outro: ['F', 'G', 'C', 'C'] }),
+  p('晴天', '周杰伦', ['晴天', '周杰伦晴天'], 'G', '0品', 92, '下 下上 上下上', ['G', 'D', 'Em', 'C', 'Am'], { intro: ['G', 'D', 'Em', 'C'], verseA: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'C'], verseB: ['Am', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], chorus: ['C', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], bridge: ['Em', 'D', 'C', 'G', 'Am', 'D', 'G', 'G'], outro: ['C', 'D', 'G', 'G'] }),
+  p('海阔天空', 'Beyond', ['海阔天空', 'beyond海阔天空'], 'G', '0品', 78, '下 下上 上下上', ['G', 'D', 'Em', 'C', 'Am'], { intro: ['G', 'D', 'Em', 'C'], verseA: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'D'], verseB: ['Am', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], chorus: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'D'], bridge: ['Em', 'D', 'C', 'G', 'Am', 'D', 'G', 'G'], outro: ['C', 'D', 'G', 'G'] }),
+  p('平凡之路', '朴树', ['平凡之路', '朴树平凡之路'], 'G', '0品', 84, '下 下上 空上 下上', ['G', 'D', 'Em', 'C'], { intro: ['G', 'D', 'Em', 'C'], verseA: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'C'], verseB: ['C', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], chorus: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'C'], bridge: ['Em', 'D', 'C', 'G', 'C', 'D', 'G', 'G'], outro: ['C', 'D', 'G', 'G'] }),
+  p('半壶纱', '刘珂矣', ['半壶纱', '刘珂矣半壶纱'], 'Am', '0品', 72, '下 下上 上下上', ['Am', 'G', 'F', 'E', 'Dm'], { intro: ['Am', 'G', 'F', 'E'], verseA: ['Am', 'G', 'F', 'E', 'Am', 'G', 'F', 'E'], verseB: ['F', 'G', 'Am', 'Am', 'F', 'G', 'E', 'E'], chorus: ['Am', 'G', 'F', 'E', 'Am', 'G', 'F', 'E'], bridge: ['Dm', 'G', 'C', 'Am', 'F', 'E', 'Am', 'Am'], outro: ['F', 'E', 'Am', 'Am'] }),
+  p('夜空中最亮的星', '逃跑计划', ['夜空中最亮的星', '逃跑计划夜空中最亮的星'], 'G', '0品', 86, '下 下上 上下上', ['G', 'D', 'Em', 'C'], { intro: ['G', 'D', 'Em', 'C'], verseA: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'C'], verseB: ['C', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], chorus: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'D'], bridge: ['Em', 'D', 'C', 'G', 'C', 'D', 'G', 'G'], outro: ['C', 'D', 'G', 'G'] }),
+  p('蓝莲花', '许巍', ['蓝莲花', '许巍蓝莲花'], 'G', '0品', 82, '下 下上 空上 下上', ['G', 'D', 'Em', 'C'], { intro: ['G', 'D', 'Em', 'C'], verseA: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'C'], verseB: ['C', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], chorus: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'D'], bridge: ['Em', 'D', 'C', 'G', 'C', 'D', 'G', 'G'], outro: ['C', 'D', 'G', 'G'] }),
+  p('曾经的你', '许巍', ['曾经的你', '许巍曾经的你'], 'G', '0品', 92, '下 下上 上下上', ['G', 'D', 'Em', 'C'], { intro: ['G', 'D', 'Em', 'C'], verseA: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'D'], verseB: ['C', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], chorus: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'D'], bridge: ['Em', 'D', 'C', 'G', 'C', 'D', 'G', 'G'], outro: ['C', 'D', 'G', 'G'] }),
+  p('董小姐', '宋冬野', ['董小姐', '宋冬野董小姐'], 'C', '0品', 78, '下 下上 空上 下上', ['C', 'G', 'Am', 'F'], { intro: ['C', 'G', 'Am', 'F'], verseA: ['C', 'G', 'Am', 'F', 'C', 'G', 'F', 'F'], verseB: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], chorus: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], bridge: ['Am', 'G', 'F', 'C', 'F', 'G', 'C', 'C'], outro: ['F', 'G', 'C', 'C'] }),
+  p('安和桥', '宋冬野', ['安和桥', '宋冬野安和桥'], 'C', '3品', 70, '下 下上 空上 下上', ['C', 'G', 'Am', 'F'], { intro: ['C', 'G', 'Am', 'F'], verseA: ['C', 'G', 'Am', 'F', 'C', 'G', 'F', 'F'], verseB: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], chorus: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], bridge: ['Am', 'G', 'F', 'C', 'F', 'G', 'C', 'C'], outro: ['F', 'G', 'C', 'C'] }),
+  p('稻香', '周杰伦', ['稻香', '周杰伦稻香'], 'C', '0品', 86, '下 下上 上下上', ['C', 'G', 'Am', 'F'], { intro: ['C', 'G', 'Am', 'F'], verseA: ['C', 'G', 'Am', 'F', 'C', 'G', 'F', 'F'], verseB: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], chorus: ['C', 'G', 'Am', 'F', 'C', 'G', 'F', 'G'], bridge: ['Am', 'G', 'F', 'C', 'F', 'G', 'C', 'C'], outro: ['F', 'G', 'C', 'C'] }),
+  p('演员', '薛之谦', ['演员', '薛之谦演员'], 'C', '0品', 78, '下 下上 空上 下上', ['C', 'G', 'Am', 'F', 'Em'], { intro: ['C', 'G', 'Am', 'F'], verseA: ['C', 'G', 'Am', 'Em', 'F', 'C', 'F', 'G'], verseB: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], chorus: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], bridge: ['Am', 'Em', 'F', 'C', 'F', 'G', 'C', 'C'], outro: ['F', 'G', 'C', 'C'] }),
 ]
 
 function reviewContent(text = '') { return !bannedWords.some((word) => String(text || '').includes(word)) }
 function cleanSongTitle(text = '') { return String(text || '').replace(/吉他谱|曲谱|谱子|弹唱谱|和弦谱|六线谱|图片谱|txt谱|TXT谱|完整版|原版|简单版|新手版|教学|指弹|尤克里里/gi, ' ').replace(/[《》【】\[\]（）()]/g, ' ').replace(/[\s\-_·,，、。:：|｜/\\]+/g, ' ').trim() }
 function compact(text = '') { return cleanSongTitle(text).replace(/\s+/g, '').toLowerCase() }
-function sanitizeReferences(references = []) { return (Array.isArray(references) ? references : []).slice(0, 6).map((item) => ({ title: String(item?.title || '').slice(0, 120), url: String(item?.url || '').slice(0, 500), snippet: String(item?.snippet || '').slice(0, 180), provider: String(item?.provider || '').slice(0, 40), result_type: String(item?.result_type || '').slice(0, 40), source_site: String(item?.source_site || '').slice(0, 80) })).filter((item) => item.title || item.url || item.snippet) }
-function sanitizeHints(hints = {}) { return { possibleKeys: Array.isArray(hints.possibleKeys) ? hints.possibleKeys.map(String).slice(0, 4) : [], possibleCapos: Array.isArray(hints.possibleCapos) ? hints.possibleCapos.map(String).slice(0, 4) : [], possibleChords: Array.isArray(hints.possibleChords) ? hints.possibleChords.map(String).slice(0, 12) : [], tabReferenceCount: Number(hints.tabReferenceCount || 0), imageReferenceCount: Number(hints.imageReferenceCount || 0), textReferenceCount: Number(hints.textReferenceCount || 0) } }
-function buildWebContext(event = {}) { const context = event.web_context || {}; return { title: cleanSongTitle(event.title || context.title || event.prompt || ''), artist: String(event.artist || context.artist || '').trim(), summary: String(context.summary || '').slice(0, 800), confidence: Number(context.confidence || 0), source: String(context.source || 'ai_direct'), references: sanitizeReferences(context.references), tabReferences: sanitizeReferences(context.tabReferences), arrangementHints: sanitizeHints(context.arrangementHints) } }
 function normalizeKey(key = 'C') { const raw = String(key || 'C').trim().replace('♭', 'b').replace('＃', '#'); if (DEFAULT_PROGRESSIONS[raw]) return raw; if (/^Am/i.test(raw)) return 'Am'; if (/^G/i.test(raw)) return 'G'; if (/^D/i.test(raw)) return 'D'; if (/^A/i.test(raw)) return 'A'; if (/^E/i.test(raw)) return 'E'; if (/^F/i.test(raw)) return 'F'; return 'C' }
 function uniqueChords(chords = []) { return Array.from(new Set((Array.isArray(chords) ? chords : []).map((item) => String(item || '').trim()).filter(Boolean))).slice(0, 12) }
 function isChordSequence(chords = []) { return Array.isArray(chords) && chords.length >= 4 && chords.every((chord) => /^[A-G](?:#|b|♭)?m?(?:maj|min|dim|aug|sus|add)?\d*(?:\/[A-G](?:#|b|♭)?)?$/.test(String(chord || '').trim())) }
 function normalizeProgressions(progressions = {}) { const out = {}; PROFILE_SECTIONS.forEach((key) => { const seq = progressions[key]; if (isChordSequence(seq)) out[key] = seq.slice(0, 12) }); return out }
+function sanitizeReferences(references = []) { return (Array.isArray(references) ? references : []).slice(0, 6).map((item) => ({ title: String(item?.title || '').slice(0, 120), url: String(item?.url || '').slice(0, 500), snippet: String(item?.snippet || '').slice(0, 180), provider: String(item?.provider || '').slice(0, 40), result_type: String(item?.result_type || '').slice(0, 40), source_site: String(item?.source_site || '').slice(0, 80) })).filter((item) => item.title || item.url || item.snippet) }
+function sanitizeHints(hints = {}) { return { possibleKeys: Array.isArray(hints.possibleKeys) ? hints.possibleKeys.map(String).slice(0, 4) : [], possibleCapos: Array.isArray(hints.possibleCapos) ? hints.possibleCapos.map(String).slice(0, 4) : [], possibleChords: Array.isArray(hints.possibleChords) ? hints.possibleChords.map(String).slice(0, 12) : [], tabReferenceCount: Number(hints.tabReferenceCount || 0), imageReferenceCount: Number(hints.imageReferenceCount || 0), textReferenceCount: Number(hints.textReferenceCount || 0) } }
+function buildWebContext(event = {}) { const context = event.web_context || {}; return { title: cleanSongTitle(event.title || context.title || event.prompt || ''), artist: String(event.artist || context.artist || '').trim(), summary: String(context.summary || '').slice(0, 800), confidence: Number(context.confidence || 0), source: String(context.source || 'ai_direct'), references: sanitizeReferences(context.references), tabReferences: sanitizeReferences(context.tabReferences), arrangementHints: sanitizeHints(context.arrangementHints) } }
 function isVerifiedProfile(raw = {}, source = '') { return source === 'built_in_song_profile' || raw.verified === true || raw.quality === 'verified' || raw.review_status === 'approved' }
 function profileIsUsable(raw = {}, source = '') { return raw && isVerifiedProfile(raw, source) && cleanSongTitle(raw.title || raw.song_title || '') && isChordSequence(raw.chords) && Object.keys(normalizeProgressions(raw.progressions)).length >= 4 }
 function normalizeProfile(raw = {}, source = 'custom_profile') {
@@ -103,10 +76,7 @@ function findBuiltInProfile(title = '', artist = '') {
   const titleKey = compact(title)
   const fullKey = `${compact(title)}${compact(artist)}`
   if (!titleKey) return null
-  const raw = BUILT_IN_PROFILES.find((item) => [item.title, item.artist, ...(item.aliases || [])].some((word) => {
-    const key = compact(word)
-    return key && (fullKey.includes(key) || key.includes(titleKey) || titleKey.includes(key))
-  }))
+  const raw = BUILT_IN_PROFILES.find((item) => [item.title, item.artist, ...(item.aliases || [])].some((word) => { const key = compact(word); return key && (fullKey.includes(key) || key.includes(titleKey) || titleKey.includes(key)) }))
   return raw ? normalizeProfile(raw, 'built_in_song_profile') : null
 }
 async function findCloudProfile(title = '', artist = '') {
@@ -119,12 +89,11 @@ async function findCloudProfile(title = '', artist = '') {
     if (exactProfile) return exactProfile
     const keys = [titleKey, `${titleKey}${artistKey}`].filter(Boolean)
     const aliasRows = await songProfiles.where({ aliases_compact: _.in(keys), status: _.neq('disabled') }).limit(3).get()
-    const aliasProfile = (aliasRows.data || []).map((row) => normalizeProfile(row, 'cloud_song_profile')).find(Boolean)
-    if (aliasProfile) return aliasProfile
+    return (aliasRows.data || []).map((row) => normalizeProfile(row, 'cloud_song_profile')).find(Boolean) || null
   } catch (error) {
     console.log('song profile lookup skipped', error?.message || error)
+    return null
   }
-  return null
 }
 async function resolveSongProfile(webContext = {}, event = {}) { const title = webContext.title || event.title || event.prompt || ''; const artist = webContext.artist || event.artist || ''; return await findCloudProfile(title, artist) || findBuiltInProfile(title, artist) }
 function bars(chords = []) { return `| ${chords.join(' | ')} |` }
@@ -133,12 +102,7 @@ function makeSection(name, chords, instruction) { const groups = splitBars(chord
 function buildArrangementFromProfile(profile = {}, reason = 'verified_profile') {
   const progressions = normalizeProgressions(profile.progressions)
   const sections = PROFILE_SECTIONS.filter((key) => progressions[key]).map((key) => makeSection(SECTION_NAMES[key], progressions[key], SECTION_TIPS[key]))
-  return { title: `${profile.title} AI完整曲谱`, style: '弹唱', song_key: profile.key, bpm: profile.bpm, capo: profile.capo, difficulty: '新手', strumming: profile.strumming, chords: uniqueChords(profile.chords), sections, practiceTips: [
-    `本谱按《${profile.title}》${profile.artist ? profile.artist : ''}的已验证简化弹唱结构生成，建议先用 ${Math.max(60, Number(profile.bpm || 84) - 12)} BPM 慢练。`,
-    `右手节奏：${profile.strumming}。先空弦练 2 分钟，再加入左手和弦。`,
-    `每个竖线之间是 1 小节；副歌可循环练：${bars((progressions.chorus || []).slice(0, 4))}。`,
-    '本谱为 AI 简化练习版，不含完整歌词，不声称官方或原版。',
-  ], generationMode: reason, arrangementProfile: { title: profile.title, artist: profile.artist, source: profile.source, matchLevel: profile.matchLevel, verified: true } }
+  return { title: `${profile.title} AI完整曲谱`, style: '弹唱', song_key: profile.key, bpm: profile.bpm, capo: profile.capo, difficulty: '新手', strumming: profile.strumming, chords: uniqueChords(profile.chords), sections, practiceTips: [`本谱按《${profile.title}》${profile.artist || ''}的已验证简化弹唱结构生成，建议先用 ${Math.max(60, Number(profile.bpm || 84) - 12)} BPM 慢练。`, `右手节奏：${profile.strumming}。先空弦练 2 分钟，再加入左手和弦。`, `每个竖线之间是 1 小节；副歌可循环练：${bars((progressions.chorus || []).slice(0, 4))}。`, '本谱为 AI 简化练习版，不含完整歌词，不声称官方或原版。'], generationMode: reason, arrangementProfile: { title: profile.title, artist: profile.artist, source: profile.source, matchLevel: profile.matchLevel, verified: true } }
 }
 function buildPracticeArrangement(event = {}, webContext = {}, reason = 'practice_only') {
   const title = cleanSongTitle(webContext.title || event.title || event.prompt || '目标歌曲') || '目标歌曲'
@@ -148,7 +112,7 @@ function buildPracticeArrangement(event = {}, webContext = {}, reason = 'practic
   return buildArrangementFromProfile({ title, artist: webContext.artist || event.artist || '', key, capo: '0品', bpm: 84, strumming: '下 下上 空上 下上', chords, progressions, source: 'practice_fallback', matchLevel: reason, verified: true }, reason)
 }
 function normalizeSectionLines(lines = []) { return lines.map((line) => { if (!line) return null; if (typeof line === 'string') return { chordLine: '', lyricLine: line }; return { chordLine: String(line.chordLine || line.chord || '').trim(), lyricLine: String(line.lyricLine || line.lyric || line.text || '').trim() } }).filter((line) => line && (line.lyricLine || line.chordLine)) }
-function isPlayablePayload(payload = {}) { return Array.isArray(payload.sections) && payload.sections.length >= 4 && payload.sections.reduce((sum, section) => sum + normalizeSectionLines(section.lines || []).length, 0) >= 8 && uniqueChords(payload.chords).length >= 4 }
+function isPlayablePayload(payload = {}) { return Array.isArray(payload.sections) && payload.sections.length >= 5 && payload.sections.reduce((sum, section) => sum + normalizeSectionLines(section.lines || []).length, 0) >= 8 && uniqueChords(payload.chords).length >= 4 }
 function normalizeSongPayload(payload = {}, fallback = {}) { const source = isPlayablePayload(payload) ? payload : fallback; const sections = source.sections.map((section) => ({ name: String(section?.name || '正文'), lines: normalizeSectionLines(section?.lines || []) })).filter((section) => section.lines.length); return { title: String(source.title || fallback.title || 'AI完整曲谱'), style: String(source.style || fallback.style || '弹唱'), song_key: String(source.song_key || source.key || fallback.song_key || 'C'), bpm: Number(source.bpm || fallback.bpm || 84), capo: String(source.capo || fallback.capo || '0品'), difficulty: String(source.difficulty || fallback.difficulty || '新手'), strumming: String(source.strumming || fallback.strumming || '下 下上 空上 下上'), chords: uniqueChords(source.chords).length ? uniqueChords(source.chords) : uniqueChords(fallback.chords), sections, practiceTips: Array.isArray(source.practiceTips) && source.practiceTips.length ? source.practiceTips.map(String).slice(0, 5) : fallback.practiceTips, generationMode: source.generationMode || fallback.generationMode || 'profile_repaired', arrangementProfile: source.arrangementProfile || fallback.arrangementProfile || null } }
 function sectionsToRawText(sections = []) { return sections.map((section) => `[${section.name}]\n${section.lines.map((line) => line.chordLine ? `${line.chordLine}\n${line.lyricLine}` : line.lyricLine).join('\n')}`).join('\n\n') }
 function chordRoot(chord = '') { return String(chord || '').replace(/\/.*$/, '').trim() }
@@ -157,6 +121,21 @@ function padCell(text = '', width = 8) { const raw = String(text || '').slice(0,
 function parseChordBar(line = '') { return String(line || '').split('|').map((item) => item.trim()).filter(Boolean).flatMap((cell) => cell.split(/\s+/).filter(Boolean)).slice(0, 4) }
 function buildSixLineBlock(chordLine = '', lyricLine = '') { const chords = parseChordBar(chordLine).length ? parseChordBar(chordLine) : ['C', 'G', 'Am', 'F']; const stringNames = ['E', 'A', 'D', 'G', 'B', 'e']; const header = `     ${chords.map((chord) => padCell(chord, 8)).join('')}`; const lines = stringNames.map((name, stringIndex) => `${name}|${chords.map((chord) => `--${shapeFor(chord)[stringIndex]}---${shapeFor(chord)[stringIndex]}-`).join('')}|`); return [header, ...lines.reverse(), `节奏 ${chords.map(() => '↓ ↓↑ ↑↓↑').join(' | ')}`, `提示 ${String(lyricLine || '').slice(0, 36)}`] }
 function buildImageTabPages(sections = [], meta = {}) { const pages = []; let blocks = [{ type: 'section', text: `${meta.title || 'AI完整曲谱'}｜${meta.song_key || 'C'}调｜${meta.capo || '0品'}｜${meta.bpm || 84} BPM` }, { type: 'tab', lines: [`右手节奏：${meta.strumming || '下 下上 空上 下上'}`, `常用和弦：${(meta.chords || []).join('  ')}`] }]; sections.forEach((section) => { blocks.push({ type: 'section', text: section.name }); section.lines.forEach((line) => { blocks.push({ type: 'tab', lines: buildSixLineBlock(line.chordLine, line.lyricLine) }); if (blocks.length >= 6) { pages.push({ title: `${meta.title || '图片六线谱'} · 第${pages.length + 1}页`, blocks }); blocks = [] } }) }); if (blocks.length) pages.push({ title: `${meta.title || '图片六线谱'} · 第${pages.length + 1}页`, blocks }); return pages }
+function countLines(sections = []) { return sections.reduce((sum, section) => sum + normalizeSectionLines(section.lines || []).length, 0) }
+function validateGeneratedSong(normalized = {}, imageTabPages = [], isRealSong = false) {
+  const errors = []
+  if (!normalized.title) errors.push('缺少标题')
+  if (!normalized.song_key) errors.push('缺少调式')
+  if (!normalized.capo) errors.push('缺少变调夹')
+  if (!Number(normalized.bpm)) errors.push('缺少BPM')
+  if (!normalized.strumming) errors.push('缺少右手节奏型')
+  if (uniqueChords(normalized.chords).length < 4) errors.push('和弦少于4个')
+  if (!Array.isArray(normalized.sections) || normalized.sections.length < 5) errors.push('段落少于5个')
+  if (countLines(normalized.sections) < 8) errors.push('谱面行数少于8行')
+  if (!Array.isArray(imageTabPages) || imageTabPages.length < 1) errors.push('图片六线谱页生成失败')
+  if (isRealSong && normalized.arrangementProfile?.verified !== true) errors.push('真实歌曲缺少verified结构来源')
+  return { ok: errors.length === 0, errors, summary: { sectionCount: normalized.sections?.length || 0, lineCount: countLines(normalized.sections || []), chordCount: uniqueChords(normalized.chords).length, imagePageCount: imageTabPages?.length || 0, verified: normalized.arrangementProfile?.verified === true } }
+}
 function profileMissingMessage(title = '') { return `暂未收录《${title || '这首歌'}》的可靠曲谱结构。为了避免生成不符合真实歌曲的错谱，暂不自动生成。` }
 async function getCurrentUser(openid) { const result = await users.where({ openid }).limit(1).get(); return result.data[0] || null }
 async function ensureUser(openid, now) { let user = await getCurrentUser(openid); if (user) return user; const seed = { openid, nickname: '谱灵用户', avatar_url: '', membership_type: 'free', generation_quota: 10, daily_free_quota: 5, total_generated: 0, works_count: 0, followers_count: 0, following_count: 0, likes_count: 0, status: 'active', created_at: now, updated_at: now, last_login_at: now }; const created = await users.add({ data: seed }); return { _id: created._id, ...seed } }
@@ -169,13 +148,16 @@ exports.main = async (event = {}) => {
   const isWebChords = event.type === 'web_chords'
   const sourceText = String(event.prompt || event.lyrics || event.title || webContext.title || webContext.summary || '')
   if (!reviewContent(sourceText)) return { code: 403, message: '内容审核未通过，请调整后重试' }
-  const user = await ensureUser(openid, now)
-  if ((user.generation_quota || 0) <= 0 && user.membership_type === 'free') return { code: 403, message: '今日免费额度已用完，请明日再试' }
 
   const resolvedProfile = isWebChords ? await resolveSongProfile(webContext, event) : null
+  if (event.action === 'profileCheck') {
+    return resolvedProfile
+      ? { code: 0, data: { matched: true, profile: { title: resolvedProfile.title, artist: resolvedProfile.artist, key: resolvedProfile.key, capo: resolvedProfile.capo, bpm: resolvedProfile.bpm, strumming: resolvedProfile.strumming, chords: resolvedProfile.chords, sections: Object.keys(resolvedProfile.progressions || {}), verified: true, source: resolvedProfile.source } } }
+      : { code: 0, data: { matched: false, message: profileMissingMessage(webContext.title || event.title || '') } }
+  }
+
   let arrangement = null
   let modelStatus = 'profile_not_found'
-
   if (resolvedProfile) {
     arrangement = buildArrangementFromProfile(resolvedProfile, resolvedProfile.matchLevel || 'verified_profile')
     modelStatus = resolvedProfile.source === 'cloud_song_profile' ? 'cloud_verified_profile_success' : 'built_in_verified_profile_success'
@@ -187,8 +169,14 @@ exports.main = async (event = {}) => {
   }
 
   const normalized = normalizeSongPayload(arrangement, arrangement)
-  const rawText = sectionsToRawText(normalized.sections)
   const imageTabPages = buildImageTabPages(normalized.sections, normalized)
+  const quality = validateGeneratedSong(normalized, imageTabPages, isWebChords)
+  if (!quality.ok) return { code: 422, message: `曲谱结构校验未通过：${quality.errors.join('；')}` }
+
+  const user = await ensureUser(openid, now)
+  if ((user.generation_quota || 0) <= 0 && user.membership_type === 'free') return { code: 403, message: '今日免费额度已用完，请明日再试' }
+
+  const rawText = sectionsToRawText(normalized.sections)
   const isPublic = Boolean(event.is_public) && !isWebChords
   const sourceType = isWebChords ? 'ai_web_dual_tab' : 'ai_dual_tab'
   const data = {
@@ -206,8 +194,8 @@ exports.main = async (event = {}) => {
     strumming: normalized.strumming,
     tags: ['AI生成完整曲谱', '可练习', 'TXT谱', '图片六线谱', normalized.style],
     raw_text: rawText,
-    content_json: { sections: normalized.sections, chords: normalized.chords, practiceTips: normalized.practiceTips, strumming: normalized.strumming, copyrightNotice: 'AI 生成的简化练习曲谱，非官方曲谱。', arrangementHints: isWebChords ? webContext.arrangementHints : null, arrangementProfile: normalized.arrangementProfile, modelStatus, modelErrorMessage: '', tabOutputType: 'both', imageTabPages },
-    generation_source: isWebChords ? { type: 'ai_dual_tab_direct', provider: webContext.source || 'ai_direct', confidence: webContext.confidence || 0, summary: webContext.summary || '', references: webContext.references, tabReferences: webContext.tabReferences, arrangementHints: webContext.arrangementHints, arrangementProfile: normalized.arrangementProfile, modelStatus, tabOutputType: 'both' } : { type: sourceType, modelStatus, tabOutputType: 'both' },
+    content_json: { sections: normalized.sections, chords: normalized.chords, practiceTips: normalized.practiceTips, strumming: normalized.strumming, copyrightNotice: 'AI 生成的简化练习曲谱，非官方曲谱。', arrangementHints: isWebChords ? webContext.arrangementHints : null, arrangementProfile: normalized.arrangementProfile, modelStatus, modelErrorMessage: '', qualitySummary: quality.summary, tabOutputType: 'both', imageTabPages },
+    generation_source: isWebChords ? { type: 'ai_dual_tab_direct', provider: webContext.source || 'ai_direct', confidence: webContext.confidence || 0, summary: webContext.summary || '', references: webContext.references, tabReferences: webContext.tabReferences, arrangementHints: webContext.arrangementHints, arrangementProfile: normalized.arrangementProfile, qualitySummary: quality.summary, modelStatus, tabOutputType: 'both' } : { type: sourceType, modelStatus, tabOutputType: 'both', qualitySummary: quality.summary },
     source_type: sourceType,
     edit_mode: 'ai',
     has_tab: true,
@@ -227,5 +215,5 @@ exports.main = async (event = {}) => {
   const nextTotalGenerated = Number(user.total_generated || 0) + 1
   const nextWorksCount = Number(user.works_count || 0) + 1
   await users.doc(user._id).update({ data: { generation_quota: _.inc(-1), total_generated: _.inc(1), works_count: _.inc(1), updated_at: now } })
-  return { code: 0, data: { songId: songResult._id, title: data.title, style: data.style, song_key: data.song_key, bpm: data.bpm, capo: data.capo, difficulty: data.difficulty, strumming: data.strumming, chords: normalized.chords, sections: normalized.sections, practiceTips: normalized.practiceTips, source_type: data.source_type, tabOutputType: 'both', imageTabPages, modelStatus, modelErrorMessage: '', user: { id: user._id, generation_quota: nextGenerationQuota, total_generated: nextTotalGenerated, works_count: nextWorksCount, membership_type: user.membership_type || 'free' } } }
+  return { code: 0, data: { songId: songResult._id, title: data.title, style: data.style, song_key: data.song_key, bpm: data.bpm, capo: data.capo, difficulty: data.difficulty, strumming: data.strumming, chords: normalized.chords, sections: normalized.sections, practiceTips: normalized.practiceTips, source_type: data.source_type, tabOutputType: 'both', imageTabPages, modelStatus, modelErrorMessage: '', qualitySummary: quality.summary, user: { id: user._id, generation_quota: nextGenerationQuota, total_generated: nextTotalGenerated, works_count: nextWorksCount, membership_type: user.membership_type || 'free' } } }
 }
