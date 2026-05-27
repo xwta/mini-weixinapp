@@ -1,12 +1,12 @@
 <template>
   <view class="benefits-page">
-    <AppNavBar title="功能说明" subtitle="当前版本免费开放体验" show-back />
+    <AppNavBar title="功能说明" subtitle="吉他谱学习练习工具" show-back />
 
     <view class="container">
       <view class="hero-card">
-        <view class="hero-title">谱灵 AI 工具说明</view>
-        <view class="hero-desc">当前小程序为免费体验版本，可使用搜谱、AI生成TXT谱、图片六线谱和调音功能。</view>
-        <view class="hero-pill">免费体验 · 工具服务</view>
+        <view class="hero-title">谱灵吉他谱工具说明</view>
+        <view class="hero-desc">当前小程序提供曲谱查找、TXT弹唱谱、图片六线谱、调音器和练习记录功能，适合个人学习练习使用。</view>
+        <view class="hero-pill">免费使用 · 学习工具</view>
       </view>
 
       <view class="section-title">当前可用能力</view>
@@ -22,7 +22,7 @@
 
       <view class="notice-card">
         <view class="notice-title">说明</view>
-        <view class="notice-text">当前版本仅开放基础工具体验，相关商业化能力暂不开放。</view>
+        <view class="notice-text">曲谱内容仅供个人学习和练习参考，不提供交易、提现或付费购买服务。</view>
       </view>
 
       <view class="primary-btn" @tap="goCreate">开始搜谱</view>
@@ -34,9 +34,9 @@
 import AppNavBar from '../../components/AppNavBar.vue'
 
 const benefits = [
-  { icon: '⌕', title: 'AI搜谱', desc: '输入歌名或歌手，查找可参考的曲谱资源。' },
-  { icon: '♪', title: 'TXT谱生成', desc: '根据歌曲信息生成可练习的TXT弹唱谱。' },
-  { icon: '▤', title: '图片六线谱', desc: '生成适合上下滚动阅读的六线谱页面。' },
+  { icon: '⌕', title: '曲谱查找', desc: '输入歌名，查找已收录的可练习曲谱结构。' },
+  { icon: '♪', title: 'TXT弹唱谱', desc: '展示适合手机阅读的和弦弹唱谱。' },
+  { icon: '▤', title: '图片六线谱', desc: '提供适合上下滚动阅读的六线谱页面。' },
   { icon: '♬', title: '调音器', desc: '辅助吉他标准音调音练习。' },
 ]
 
