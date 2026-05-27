@@ -10,7 +10,7 @@ export const FEATURES = {
   ENABLE_TUNER: true,
   ENABLE_ORDERS: false,
   ENABLE_NOTIFICATIONS: false,
-  ENABLE_MEMBERSHIP: true
+  ENABLE_MEMBERSHIP: false
 }
 
 export function isFeatureEnabled(key: keyof typeof FEATURES) {
