@@ -18,7 +18,7 @@
             <view class="author-avatar">♪</view>
             <view class="author-info">
               <view class="author-name">{{ arrangerLabel }}</view>
-              <view class="author-desc">{{ hasImageTabPages ? '图片六线谱与TXT谱双模式' : '适合个人弹唱练习' }}</view>
+              <view class="author-desc">{{ hasImageTabPages ? 'TXT谱与图片六线谱双模式' : '适合个人弹唱练习' }}</view>
             </view>
             <view class="favorite-btn" @tap.stop="handleFavorite">
               <text class="heart">♡</text>
@@ -47,8 +47,8 @@
         </view>
 
         <view v-if="hasImageTabPages" class="reader-switch card">
-          <view :class="['switch-item', isImageReader && 'active']" @tap="setReaderMode('image')">图片六线谱</view>
           <view :class="['switch-item', !isImageReader && 'active']" @tap="setReaderMode('txt')">TXT谱</view>
+          <view :class="['switch-item', isImageReader && 'active']" @tap="setReaderMode('image')">图片六线谱</view>
         </view>
 
         <view class="tool-card card">
@@ -93,7 +93,7 @@
             <view v-for="(block, blockIndex) in page.blocks" :key="`${pageIndex}-${blockIndex}`" class="tab-block">
               <view v-if="block.type === 'section'" class="tab-section-title">{{ block.text }}</view>
               <view v-else class="six-line-wrap">
-                <text v-for="(tabLine, lineIndex) in block.lines" :key="lineIndex" class="six-line">{{ tabLine }}</text>
+                <text v-for="(tabLine, lineIndex) in normalizeTabLines(block.lines)" :key="lineIndex" class="six-line">{{ tabLine }}</text>
               </view>
             </view>
           </view>
@@ -116,7 +116,7 @@
         </view>
 
         <view v-if="sourceInfo" class="source-card">
-          <view class="source-title">曲谱来源</view>
+          <view class="source-title">曲谱说明</view>
           <view class="source-text">{{ sourceInfo }}</view>
         </view>
 
@@ -156,34 +156,15 @@ import { loginWithWechatProfile } from '../../api/auth'
 import { useAuthStore } from '../../stores/auth'
 import type { Song, SongSection } from '../../types'
 
-interface ImageTabBlock {
-  type?: 'section' | 'tab'
-  text?: string
-  lines?: string[]
-}
-
-interface ImageTabPage {
-  title?: string
-  blocks: ImageTabBlock[]
-}
+interface ImageTabBlock { type?: 'section' | 'tab'; text?: string; lines?: string[] }
+interface ImageTabPage { title?: string; blocks: ImageTabBlock[] }
 
 const song = ref<Song | null>(null)
 const transposeOffset = ref(0)
 const readerMode = ref<'auto' | 'image' | 'txt'>('auto')
 
 const SHARP_NOTES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
-const FLAT_TO_SHARP: Record<string, string> = {
-  'Db': 'C#',
-  'D♭': 'C#',
-  'Eb': 'Eb',
-  'E♭': 'Eb',
-  'Gb': 'F#',
-  'G♭': 'F#',
-  'Ab': 'Ab',
-  'A♭': 'Ab',
-  'Bb': 'Bb',
-  'B♭': 'Bb',
-}
+const FLAT_TO_SHARP: Record<string, string> = { 'Db': 'C#', 'D♭': 'C#', 'Eb': 'Eb', 'E♭': 'Eb', 'Gb': 'F#', 'G♭': 'F#', 'Ab': 'Ab', 'A♭': 'Ab', 'Bb': 'Bb', 'B♭': 'Bb' }
 const CHORD_RE = /^([A-G](?:#|b|♭)?)(.*)$/
 const CHORD_TOKEN_RE = /([A-G](?:#|b|♭)?(?:m|maj|min|dim|aug|sus|add)?(?:2|4|5|6|7|9|11|13)?(?:\/[A-G](?:#|b|♭)?)?)/g
 
@@ -191,7 +172,6 @@ const displayTitle = computed(() => {
   const title = song.value?.title || '练习曲谱'
   return title.startsWith('《') ? title : `《${title}》`
 })
-
 const originalKey = computed(() => normalizeNoteName(String(song.value?.song_key || 'C').replace(/调/g, '')) || 'C')
 const displayKey = computed(() => transposeNote(originalKey.value, transposeOffset.value))
 const imageTabPages = computed<ImageTabPage[]>(() => {
@@ -199,14 +179,15 @@ const imageTabPages = computed<ImageTabPage[]>(() => {
   return Array.isArray(pages) ? pages.filter((page) => Array.isArray(page?.blocks)) : []
 })
 const hasImageTabPages = computed(() => imageTabPages.value.length > 0)
+const isDualTab = computed(() => song.value?.content_json?.tabOutputType === 'both' || song.value?.source_type === 'ai_web_dual_tab' || song.value?.source_type === 'ai_dual_tab')
 const isImageReader = computed(() => {
   if (!hasImageTabPages.value) return false
   if (readerMode.value === 'image') return true
   if (readerMode.value === 'txt') return false
-  return song.value?.content_json?.tabOutputType === 'image' || song.value?.source_type === 'ai_web_image_tab' || song.value?.source_type === 'ai_image_tab'
+  return false
 })
-
 const sourceLabel = computed(() => {
+  if (isDualTab.value) return 'AI完整曲谱'
   if (song.value?.source_type === 'web_txt') return '文本谱导入'
   if (song.value?.source_type === 'ai_web_image_tab' || song.value?.source_type === 'ai_image_tab') return 'AI图片六线谱'
   if (song.value?.source_type === 'ai_web_txt') return 'AI生成TXT谱'
@@ -215,92 +196,53 @@ const sourceLabel = computed(() => {
   if (song.value?.source_type === 'seed' || song.value?.source_type === 'seed_bulk') return '歌曲索引'
   return '练习曲谱'
 })
-
-const arrangerLabel = computed(() => {
-  if (String(song.value?.source_type || '').startsWith('ai')) return '谱灵 AI 编配'
-  return song.value?.artist_name || '曲谱资源'
-})
-
+const arrangerLabel = computed(() => String(song.value?.source_type || '').startsWith('ai') ? '谱灵 AI 编配' : song.value?.artist_name || '曲谱资源')
 const baseSections = computed<SongSection[]>(() => {
   const content = song.value?.content_json
   if (content?.sections?.length) return content.sections
-  return [
-    {
-      name: '主歌',
-      lines: [
-        { chordLine: 'C                         G', lyricLine: '请选择或导入曲谱内容' },
-        { chordLine: 'Am                        F', lyricLine: '这里会显示弹唱练习谱' },
-      ],
-    },
-  ]
+  return [{ name: '主歌', lines: [{ chordLine: '| C | G | Am | F |', lyricLine: '这里会显示弹唱练习谱' }] }]
 })
-
 const transposedSections = computed<SongSection[]>(() => {
   if (!transposeOffset.value) return baseSections.value
-  return baseSections.value.map(section => ({
-    ...section,
-    lines: section.lines.map(line => ({
-      ...line,
-      chordLine: transposeChordLine(line.chordLine || '', transposeOffset.value),
-    })),
-  }))
+  return baseSections.value.map(section => ({ ...section, lines: section.lines.map(line => ({ ...line, chordLine: transposeChordLine(line.chordLine || '', transposeOffset.value) })) }))
 })
-
 const practiceTips = computed<string[]>(() => {
   const tips = song.value?.content_json?.practiceTips
   if (tips?.length) return tips
   return ['先用 80 BPM 慢速练习主歌', '注意换和弦时手型提前准备', '适合新手从简单扫弦开始']
 })
-
-const sourceInfo = computed(() => {
-  const content = song.value?.content_json
-  if (content?.copyrightNotice) return content.copyrightNotice
-  if (content?.sourceTitle) return content.sourceTitle
-  if (content?.sourceUrl) return content.sourceUrl
-  return ''
-})
+const sourceInfo = computed(() => song.value?.content_json?.copyrightNotice || '')
 
 onLoad(async (query) => {
   const id = String(query?.id || '')
   if (id) song.value = await getSongDetail(id)
 })
 
-function setReaderMode(mode: 'image' | 'txt') {
-  readerMode.value = mode
-}
-
+function setReaderMode(mode: 'image' | 'txt') { readerMode.value = mode }
+function normalizeTabLines(lines?: string[]) { return Array.isArray(lines) ? lines.filter(Boolean) : [] }
 function normalizeNoteName(note = '') {
   const clean = note.replace(/♯/g, '#').replace(/\s/g, '')
   if (FLAT_TO_SHARP[clean]) return FLAT_TO_SHARP[clean]
   return SHARP_NOTES.includes(clean) ? clean : clean.match(/[A-G](?:#|b|♭)?/)?.[0] || 'C'
 }
-
 function transposeNote(note = '', offset = 0) {
   const normalized = normalizeNoteName(note)
   const index = SHARP_NOTES.indexOf(normalized)
   if (index < 0) return note
   return SHARP_NOTES[(index + offset + 1200) % 12]
 }
-
 function transposeChordToken(token = '', offset = 0) {
   const slashParts = token.split('/')
   const main = transposeChordRoot(slashParts[0], offset)
   if (slashParts.length === 1) return main
-  const bass = transposeChordRoot(slashParts[1], offset)
-  return `${main}/${bass}`
+  return `${main}/${transposeChordRoot(slashParts[1], offset)}`
 }
-
 function transposeChordRoot(part = '', offset = 0) {
   const match = part.match(CHORD_RE)
   if (!match) return part
-  const root = transposeNote(match[1], offset)
-  return `${root}${match[2] || ''}`
+  return `${transposeNote(match[1], offset)}${match[2] || ''}`
 }
-
-function transposeChordLine(line = '', offset = 0) {
-  return line.replace(CHORD_TOKEN_RE, (match) => transposeChordToken(match, offset))
-}
-
+function transposeChordLine(line = '', offset = 0) { return line.replace(CHORD_TOKEN_RE, (match) => transposeChordToken(match, offset)) }
 function splitChordLine(line = '') {
   const result: { text: string; isChord: boolean }[] = []
   let lastIndex = 0
@@ -313,13 +255,11 @@ function splitChordLine(line = '') {
   if (lastIndex < line.length) result.push({ text: line.slice(lastIndex), isChord: false })
   return result.length ? result : [{ text: line, isChord: false }]
 }
-
 async function ensureLogin() {
   const auth = useAuthStore()
   if (auth.isLoggedIn) return
   await loginWithWechatProfile({ nickname: '谱灵用户' })
 }
-
 async function handleFavorite() {
   if (!song.value) return
   await ensureLogin()
@@ -327,45 +267,24 @@ async function handleFavorite() {
   song.value.favorite_count = Number(song.value.favorite_count || 0) + 1
   uni.showToast({ title: '已收藏', icon: 'success' })
 }
-
-function goBack() {
-  uni.navigateBack()
-}
-
+function goBack() { uni.navigateBack() }
 function startPractice() {
   if (!song.value) return
-  if (isImageReader.value) {
-    uni.showToast({ title: '已进入图片六线谱阅读', icon: 'none' })
-    return
-  }
+  if (isImageReader.value) { uni.showToast({ title: '已进入图片六线谱阅读', icon: 'none' }); return }
   uni.navigateTo({ url: `/pages/practice/index?id=${song.value.id}&transpose=${transposeOffset.value}` })
 }
-
 function transposeUp() {
-  if (isImageReader.value) {
-    uni.showToast({ title: '图片谱请切换到TXT谱后转调', icon: 'none' })
-    return
-  }
+  if (isImageReader.value) { uni.showToast({ title: '图片谱请切换到TXT谱后转调', icon: 'none' }); return }
   transposeOffset.value += 1
   uni.showToast({ title: `已升调至 ${displayKey.value}`, icon: 'none' })
 }
-
 function transposeDown() {
-  if (isImageReader.value) {
-    uni.showToast({ title: '图片谱请切换到TXT谱后转调', icon: 'none' })
-    return
-  }
+  if (isImageReader.value) { uni.showToast({ title: '图片谱请切换到TXT谱后转调', icon: 'none' }); return }
   transposeOffset.value -= 1
   uni.showToast({ title: `已降调至 ${displayKey.value}`, icon: 'none' })
 }
-
-function resetTranspose() {
-  transposeOffset.value = 0
-}
-
-function openMetronome() {
-  uni.showToast({ title: '节拍器即将开放', icon: 'none' })
-}
+function resetTranspose() { transposeOffset.value = 0 }
+function openMetronome() { uni.showToast({ title: '节拍器即将开放', icon: 'none' }) }
 </script>
 
 <style scoped lang="scss">
@@ -397,7 +316,6 @@ function openMetronome() {
 .tool-card { margin-top: 30rpx; height: 114rpx; padding: 18rpx 20rpx; border-radius: 28rpx; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18rpx; }
 .tool-btn { height: 76rpx; border-radius: 18rpx; border: 1rpx solid #E3EBE7; background: #FFFFFF; color: #17231E; display: flex; align-items: center; justify-content: center; gap: 10rpx; font-size: 25rpx; font-weight: 800; }
 .tool-btn.active { color: #0C9D50; background: #EAF8F0; border-color: #D8F0E4; }
-.tool-btn.active-soft { color: #17231E; }
 .tool-icon { color: #10B15A; font-size: 36rpx; line-height: 36rpx; font-weight: 900; }
 .transpose-card { width: 686rpx; margin-top: 22rpx; padding: 18rpx 24rpx; box-sizing: border-box; border-radius: 22rpx; background: #FFF8E8; color: #9A6714; font-size: 24rpx; line-height: 34rpx; }
 .reset-link { margin-left: 18rpx; color: #0BA45A; font-weight: 900; }
