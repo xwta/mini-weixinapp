@@ -78,16 +78,9 @@
       }
     },
     {
-      "path": "pages/orders/index",
-      "style": {
-        "navigationBarTitleText": "我的订单",
-        "navigationStyle": "custom"
-      }
-    },
-    {
       "path": "pages/membership/index",
       "style": {
-        "navigationBarTitleText": "会员中心",
+        "navigationBarTitleText": "AI权益说明",
         "navigationStyle": "custom"
       }
     }
