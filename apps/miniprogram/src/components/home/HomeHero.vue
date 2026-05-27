@@ -7,8 +7,8 @@
           <view class="logo-spark" />
         </view>
         <view class="hero-content">
-          <text class="hero-title">谱灵 AI</text>
-          <text class="hero-desc">你的 AI 吉他伙伴</text>
+          <text class="hero-title">谱灵吉他谱</text>
+          <text class="hero-desc">搜谱、调音、练习记录工具</text>
         </view>
       </view>
 
