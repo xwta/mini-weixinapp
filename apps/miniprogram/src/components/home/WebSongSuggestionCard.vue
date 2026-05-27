@@ -43,10 +43,10 @@
       <view class="ghost-btn" @tap="emit('back')">返回结果</view>
     </view>
     <view class="generate-row">
-      <view class="secondary-btn" :class="{ loading }" @tap="emit('generate', 'txt')">
+      <view class="secondary-btn" :class="{ loading }" @tap="generateType('txt')">
         {{ loading ? '生成中' : '生成TXT谱' }}
       </view>
-      <view class="image-btn" :class="{ loading }" @tap="emit('generate', 'image')">
+      <view class="image-btn" :class="{ loading }" @tap="generateType('image')">
         {{ loading ? '生成中' : '生成图片六线谱' }}
       </view>
     </view>
@@ -66,13 +66,18 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  generate: [type: TabOutputType]
+  generate: []
   back: []
   openResource: [resource: WebSearchReference]
 }>()
 
 const confidenceText = computed(() => `${Math.round((props.candidate.confidence || 0) * 100)}%`)
 const displayReferences = computed(() => (props.candidate.tabReferences?.length ? props.candidate.tabReferences : props.candidate.references || []).slice(0, 8))
+
+function generateType(type: TabOutputType) {
+  ;(props.candidate as any).preferred_output_type = type
+  emit('generate')
+}
 
 function getRefType(ref: WebSearchReference) {
   if (ref.result_type === 'image' || ref.thumbnail_url) return 'image'
