@@ -62,7 +62,7 @@
           @blur="inputFocus = false"
         />
         <view class="tool-btn" @tap="showToolTip('附件')">📎</view>
-        <view class="tool-btn music-tool" @tap="selectMode('chord')">♪</view>
+        <view class="tool-btn music-tool" @tap="goTuner">♪</view>
       </view>
       <view :class="['send-btn', loading && 'loading']" @tap="sendMessage">{{ loading ? '处理中' : '发送' }}</view>
     </view>
@@ -100,18 +100,18 @@ const booting = ref(true)
 const pageLeaving = ref(false)
 const scrollTop = ref(0)
 const inputFocus = ref(false)
-const placeholder = ref('输入歌名，生成可靠吉他谱')
+const placeholder = ref('输入歌名，查找吉他谱')
 const lastResult = ref<ResultCardState | null>(null)
 
 const messages = ref<ChatMessage[]>([
-  { id: 'welcome', role: 'ai', content: '直接输入歌曲名，我会先检查是否收录可靠曲谱结构；命中后再生成 TXT 弹唱谱和图片六线谱，未命中不会强行生成错谱。' },
+  { id: 'welcome', role: 'ai', content: '直接输入歌曲名，我会先检查是否收录可靠曲谱结构；命中后生成 TXT 弹唱谱和图片六线谱，未命中不会强行生成错谱。' },
 ])
 
 const modeItems = [
-  { icon: '⌕', label: '搜谱', value: 'search', badge: '默认', desc: '先校验，再生成双谱', statusIcon: '🔥', statusText: '可靠结构' },
-  { icon: '▶', label: '练习', value: 'practice', badge: '今日', desc: '生成后开始练习', statusIcon: '◷', statusText: '12 分钟' },
-  { icon: '♬', label: '配和弦', value: 'chord', badge: '智能', desc: '为歌词智能匹配和弦', statusIcon: '♬', statusText: 'C G Am F' },
-  { icon: '♪', label: 'AI写歌', value: 'song', badge: '创作', desc: '输入灵感，生成歌词与和弦', statusIcon: '♫', statusText: '快速生成' },
+  { icon: '⌕', label: '搜谱', value: 'search', badge: '默认', desc: '查找可练习曲谱', statusIcon: '谱', statusText: '结构校验' },
+  { icon: '▶', label: '练习', value: 'practice', badge: '常用', desc: '打开谱面开始练习', statusIcon: '◷', statusText: '滚动读谱' },
+  { icon: '♬', label: '调音器', value: 'tuner', badge: '工具', desc: '吉他标准音调音', statusIcon: '音', statusText: 'E A D G B e' },
+  { icon: '▣', label: '练习记录', value: 'record', badge: '记录', desc: '查看已保存曲谱', statusIcon: '册', statusText: '我的曲谱' },
 ]
 
 onLoad((query) => {
@@ -126,12 +126,14 @@ onMounted(() => {
 })
 
 function selectMode(value: string) {
+  if (value === 'tuner') { goTuner(); return }
+  if (value === 'record') { openRecord(); return }
   activeMode.value = value as ModeValue
   const prompts: Record<ModeValue, string> = {
-    search: '输入歌名，生成可靠吉他谱',
+    search: '输入歌名，查找吉他谱',
     practice: '输入歌名，生成后开始练习',
-    chord: '粘贴歌词，智能匹配和弦',
-    song: '输入一句灵感，生成歌词与和弦',
+    chord: '输入文字，生成练习和弦',
+    song: '输入灵感，生成练习曲谱',
   }
   placeholder.value = prompts[activeMode.value]
   inputFocus.value = true
@@ -281,8 +283,9 @@ function openSong(songId?: string | number) { if (songId) uni.navigateTo({ url: 
 function startPractice(songId?: string | number) { if (songId) uni.navigateTo({ url: `/pages/practice/index?id=${songId}` }) }
 function saveResult() { uni.showToast({ title: '已保存到我的作品', icon: 'success' }) }
 function openRecord() { uni.navigateTo({ url: '/pages/record/index' }) }
+function goTuner() { goMain('/pages/community/index') }
 function goMain(url: string) { pageLeaving.value = true; setTimeout(() => { uni.reLaunch({ url }) }, 120) }
-function handleTabChange(value: string) { if (value === 'chat') return; if (value === 'tuner') goMain('/pages/community/index'); if (value === 'mine') goMain('/pages/mine/index') }
+function handleTabChange(value: string) { if (value === 'chat') return; if (value === 'tuner') goTuner(); if (value === 'mine') goMain('/pages/mine/index') }
 </script>
 
 <style scoped>
