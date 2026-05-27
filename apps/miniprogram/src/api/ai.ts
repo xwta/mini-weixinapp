@@ -60,6 +60,10 @@ function syncQuotaFromResult(result: any) {
   })
 }
 
+function resolveOutputType(payload: WebChordsPayload): TabOutputType {
+  return payload.output_type || (payload.web_context as any)?.preferred_output_type || 'txt'
+}
+
 export async function createSongwriting(payload: SongwritingPayload) {
   const result = await request('ai-generate', {
     type: 'songwriting',
@@ -85,14 +89,15 @@ export async function createChords(payload: ChordsPayload) {
 }
 
 export async function createWebChords(payload: WebChordsPayload) {
+  const outputType = resolveOutputType(payload)
   const result = await request('ai-generate', {
     type: 'web_chords',
     title: payload.title,
     artist: payload.artist || '',
     song_key: payload.key,
     difficulty: payload.difficulty,
-    tab_output_type: payload.output_type || 'txt',
-    output_type: payload.output_type || 'txt',
+    tab_output_type: outputType,
+    output_type: outputType,
     web_context: payload.web_context,
   })
   syncQuotaFromResult(result)
