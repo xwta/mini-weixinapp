@@ -3,7 +3,7 @@
     {
       "path": "pages/chat/index",
       "style": {
-        "navigationBarTitleText": "谱灵",
+        "navigationBarTitleText": "谱灵吉他谱",
         "navigationStyle": "custom"
       }
     },
@@ -80,14 +80,14 @@
     {
       "path": "pages/membership/index",
       "style": {
-        "navigationBarTitleText": "AI权益说明",
+        "navigationBarTitleText": "功能说明",
         "navigationStyle": "custom"
       }
     }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "谱灵 AI",
+    "navigationBarTitleText": "谱灵吉他谱",
     "navigationBarBackgroundColor": "#FFFFFF",
     "backgroundColor": "#F6FBF8"
   }
