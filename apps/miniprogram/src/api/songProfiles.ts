@@ -23,15 +23,7 @@ export interface SongProfileTestResult {
 }
 
 export async function testSongProfile(keyword: string) {
-  return request<SongProfileTestResult>('song-profile-admin', {
-    action: 'testMatch',
+  return request<SongProfileTestResult>('song-profile-check', {
     keyword,
-  })
-}
-
-export async function smokeTestSongProfiles(keywords?: string[]) {
-  return request<{ total: number; matched: number; failed: SongProfileTestResult[]; results: SongProfileTestResult[] }>('song-profile-admin', {
-    action: 'smokeTest',
-    keywords,
   })
 }
