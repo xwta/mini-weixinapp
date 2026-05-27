@@ -2,6 +2,7 @@ import { request } from './provider'
 
 export type WebSearchResultType = 'web' | 'image' | 'text' | 'fallback'
 export type WebSearchActionHint = 'preview' | 'import' | 'view_only'
+export type WebPreferredOutputType = 'txt' | 'image' | 'auto'
 
 export interface WebSearchReference {
   title: string
@@ -28,6 +29,20 @@ export interface WebArrangementHints {
   imageReferenceCount?: number
   textReferenceCount?: number
   viewOnlyCount?: number
+  outputPreference?: WebPreferredOutputType | string
+  difficulty?: string
+}
+
+export interface WebQueryIntent {
+  raw?: string
+  title?: string
+  artist?: string
+  clean?: string
+  compact?: string
+  base?: string
+  outputPreference?: WebPreferredOutputType | string
+  difficulty?: string
+  requestedKey?: string
 }
 
 export interface WebSongCandidate {
@@ -41,6 +56,8 @@ export interface WebSongCandidate {
   references: WebSearchReference[]
   tabReferences?: WebSearchReference[]
   arrangementHints?: WebArrangementHints
+  preferred_output_type?: 'txt' | 'image'
+  searchDebug?: Array<Record<string, any>>
 }
 
 export interface WebSongSearchOptions {
@@ -49,6 +66,7 @@ export interface WebSongSearchOptions {
 
 export interface WebSongSearchResult {
   query: string
+  queryIntent?: WebQueryIntent
   queryVariants?: string[]
   tabQueryVariants?: string[]
   tabSearchEnabled?: boolean
