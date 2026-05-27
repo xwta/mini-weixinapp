@@ -107,7 +107,7 @@ const placeholder = ref('输入歌名，直接生成吉他谱')
 const lastResult = ref<ResultCardState | null>(null)
 
 const messages = ref<ChatMessage[]>([
-  { id: 'welcome', role: 'ai', content: '直接输入歌曲名，我会生成一份可练习的完整吉他谱，包含 TXT 弹唱谱和图片六线谱。' },
+  { id: 'welcome', role: 'ai', content: '直接输入歌曲名，我会生成一份可练习的完整吉他谱。为避免错谱，未收录可靠结构的歌曲不会强行生成。' },
 ])
 
 onLoad((query) => {
@@ -206,15 +206,28 @@ function createDirectCandidate(text: string, localSong?: Song | any): WebSongCan
   }
 }
 
+function isProfileMissingMessage(message = '') {
+  return /暂未收录|暂未匹配|可靠曲谱结构|避免生成错谱/i.test(message)
+}
+
 async function generateFullTabFromSongText(text: string, localSong?: Song | any) {
   await ensureLogin()
   const candidate = createDirectCandidate(text, localSong)
-  await streamAiMessage(`已识别《${candidate.title}》${candidate.artist ? ` - ${candidate.artist}` : ''}，正在生成可练习完整曲谱。`)
-  const result = await createWebChords({ title: candidate.title, artist: candidate.artist, key: String(localSong?.song_key || 'C'), difficulty: '新手', web_context: candidate, output_type: 'both' })
-  if (!result.songId) { await streamAiMessage('曲谱已生成，但未返回曲谱编号。请稍后重试。'); return }
-  await streamAiMessage(`已生成《${result.title}》。包含 TXT 弹唱谱和图片六线谱，正在打开详情页。`)
-  lastResult.value = { songId: result.songId, title: result.title, chords: `${normalizeChords(result)} · 可练习完整曲谱` }
-  setTimeout(() => openSong(result.songId), 520)
+  await streamAiMessage(`已识别《${candidate.title}》${candidate.artist ? ` - ${candidate.artist}` : ''}，正在检查可靠曲谱结构。`)
+  try {
+    const result = await createWebChords({ title: candidate.title, artist: candidate.artist, key: String(localSong?.song_key || 'C'), difficulty: '新手', web_context: candidate, output_type: 'both' })
+    if (!result.songId) { await streamAiMessage('曲谱已生成，但未返回曲谱编号。请稍后重试。'); return }
+    await streamAiMessage(`已生成《${result.title}》。包含 TXT 弹唱谱和图片六线谱，正在打开详情页。`)
+    lastResult.value = { songId: result.songId, title: result.title, chords: `${normalizeChords(result)} · 可练习完整曲谱` }
+    setTimeout(() => openSong(result.songId), 520)
+  } catch (error: any) {
+    const message = error?.message || ''
+    if (isProfileMissingMessage(message)) {
+      await streamAiMessage(`${message}\n\n这不是生成失败，是为了避免输出不符合真实歌曲的错谱。你可以换一首常见歌曲，例如：成都、晴天、海阔天空、平凡之路、半壶纱。`)
+      return
+    }
+    throw error
+  }
 }
 
 async function sendMessage() {
