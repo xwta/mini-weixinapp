@@ -8,6 +8,7 @@ const users = db.collection('users')
 const songs = db.collection('songs')
 const songProfiles = db.collection('song_profiles')
 
+const DAILY_FREE_LIMIT = 5
 const bannedWords = ['赌博', '诈骗', '违禁', '暴力', '恐怖主义']
 const DEFAULT_PROGRESSIONS = {
   C: ['C', 'G', 'Am', 'F'],
@@ -37,6 +38,7 @@ const CHORD_SHAPES = {
 function p(title, artist, aliases, key, capo, bpm, strumming, chords, progressions) {
   return { title, artist, aliases, key, capo, bpm, strumming, chords, progressions, verified: true, source: 'built_in_song_profile', matchLevel: 'verified_builtin' }
 }
+
 const BUILT_IN_PROFILES = [
   p('成都', '赵雷', ['成都', '赵雷成都'], 'C', '2品', 76, '下 下上 空上 下上', ['C', 'G', 'Am', 'Em', 'F'], { intro: ['C', 'G', 'Am', 'Em', 'F', 'C', 'F', 'G'], verseA: ['C', 'G', 'Am', 'Em', 'F', 'C', 'F', 'G'], verseB: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], chorus: ['F', 'G', 'C', 'Am', 'F', 'G', 'C', 'C'], bridge: ['Am', 'Em', 'F', 'C', 'F', 'G', 'C', 'C'], outro: ['F', 'G', 'C', 'C'] }),
   p('晴天', '周杰伦', ['晴天', '周杰伦晴天'], 'G', '0品', 92, '下 下上 上下上', ['G', 'D', 'Em', 'C', 'Am'], { intro: ['G', 'D', 'Em', 'C'], verseA: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'C'], verseB: ['Am', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], chorus: ['C', 'D', 'G', 'Em', 'C', 'D', 'G', 'G'], bridge: ['Em', 'D', 'C', 'G', 'Am', 'D', 'G', 'G'], outro: ['C', 'D', 'G', 'G'] }),
@@ -55,6 +57,7 @@ const BUILT_IN_PROFILES = [
 function reviewContent(text = '') { return !bannedWords.some((word) => String(text || '').includes(word)) }
 function cleanSongTitle(text = '') { return String(text || '').replace(/吉他谱|曲谱|谱子|弹唱谱|和弦谱|六线谱|图片谱|txt谱|TXT谱|完整版|原版|简单版|新手版|教学|指弹|尤克里里/gi, ' ').replace(/[《》【】\[\]（）()]/g, ' ').replace(/[\s\-_·,，、。:：|｜/\\]+/g, ' ').trim() }
 function compact(text = '') { return cleanSongTitle(text).replace(/\s+/g, '').toLowerCase() }
+function todayKey(now = new Date()) { return new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10) }
 function normalizeKey(key = 'C') { const raw = String(key || 'C').trim().replace('♭', 'b').replace('＃', '#'); if (DEFAULT_PROGRESSIONS[raw]) return raw; if (/^Am/i.test(raw)) return 'Am'; if (/^G/i.test(raw)) return 'G'; if (/^D/i.test(raw)) return 'D'; if (/^A/i.test(raw)) return 'A'; if (/^E/i.test(raw)) return 'E'; if (/^F/i.test(raw)) return 'F'; return 'C' }
 function uniqueChords(chords = []) { return Array.from(new Set((Array.isArray(chords) ? chords : []).map((item) => String(item || '').trim()).filter(Boolean))).slice(0, 12) }
 function isChordSequence(chords = []) { return Array.isArray(chords) && chords.length >= 4 && chords.every((chord) => /^[A-G](?:#|b|♭)?m?(?:maj|min|dim|aug|sus|add)?\d*(?:\/[A-G](?:#|b|♭)?)?$/.test(String(chord || '').trim())) }
@@ -138,7 +141,34 @@ function validateGeneratedSong(normalized = {}, imageTabPages = [], isRealSong =
 }
 function profileMissingMessage(title = '') { return `暂未收录《${title || '这首歌'}》的可靠曲谱结构。为了避免生成不符合真实歌曲的错谱，暂不自动生成。` }
 async function getCurrentUser(openid) { const result = await users.where({ openid }).limit(1).get(); return result.data[0] || null }
-async function ensureUser(openid, now) { let user = await getCurrentUser(openid); if (user) return user; const seed = { openid, nickname: '谱灵用户', avatar_url: '', membership_type: 'free', generation_quota: 10, daily_free_quota: 5, total_generated: 0, works_count: 0, followers_count: 0, following_count: 0, likes_count: 0, status: 'active', created_at: now, updated_at: now, last_login_at: now }; const created = await users.add({ data: seed }); return { _id: created._id, ...seed } }
+function buildNewUser(openid, now) { const quotaDate = todayKey(now); return { openid, nickname: '谱灵用户', avatar_url: '', membership_type: 'free', quota_policy: 'daily', daily_free_limit: DAILY_FREE_LIMIT, daily_free_quota: DAILY_FREE_LIMIT, daily_used_count: 0, quota_date: quotaDate, generation_quota: DAILY_FREE_LIMIT, total_generated: 0, works_count: 0, followers_count: 0, following_count: 0, likes_count: 0, status: 'active', created_at: now, updated_at: now, last_login_at: now } }
+async function ensureUser(openid, now) { let user = await getCurrentUser(openid); if (user) return user; const seed = buildNewUser(openid, now); const created = await users.add({ data: seed }); return { _id: created._id, ...seed } }
+function isUnlimitedQuotaUser(user = {}) { return user.quota_policy === 'unlimited' || user.membership_type === 'unlimited' || user.membership_type === 'admin' || !user.quota_policy }
+async function prepareQuota(user = {}, now = new Date()) {
+  if (isUnlimitedQuotaUser(user)) {
+    if (!user.quota_policy) {
+      await users.doc(user._id).update({ data: { quota_policy: 'unlimited', generation_quota: -1, daily_free_quota: -1, daily_free_limit: -1, updated_at: now } }).catch(() => null)
+    }
+    return { ok: true, policy: 'unlimited', remaining: -1, used: 0, limit: -1, date: todayKey(now) }
+  }
+  const date = todayKey(now)
+  const limit = Number(user.daily_free_limit || user.daily_free_quota || DAILY_FREE_LIMIT)
+  const used = user.quota_date === date ? Number(user.daily_used_count || 0) : 0
+  const remaining = Math.max(0, limit - used)
+  if (remaining <= 0) return { ok: false, policy: 'daily', remaining: 0, used, limit, date }
+  return { ok: true, policy: 'daily', remaining, used, limit, date }
+}
+function buildQuotaSuccessUpdate(quota, now) {
+  if (quota.policy === 'unlimited') return { updated_at: now }
+  const nextUsed = Number(quota.used || 0) + 1
+  const nextRemaining = Math.max(0, Number(quota.limit || DAILY_FREE_LIMIT) - nextUsed)
+  return { quota_policy: 'daily', daily_free_limit: quota.limit, daily_free_quota: quota.limit, daily_used_count: nextUsed, quota_date: quota.date, generation_quota: nextRemaining, updated_at: now }
+}
+function buildQuotaUserResult(user, quota, nextTotalGenerated, nextWorksCount) {
+  if (quota.policy === 'unlimited') return { id: user._id, generation_quota: -1, daily_free_quota: -1, quota_policy: 'unlimited', quota_remaining: -1, total_generated: nextTotalGenerated, works_count: nextWorksCount, membership_type: user.membership_type || 'free' }
+  const nextRemaining = Math.max(0, Number(quota.limit || DAILY_FREE_LIMIT) - Number(quota.used || 0) - 1)
+  return { id: user._id, generation_quota: nextRemaining, daily_free_quota: quota.limit, quota_policy: 'daily', quota_remaining: nextRemaining, quota_date: quota.date, total_generated: nextTotalGenerated, works_count: nextWorksCount, membership_type: user.membership_type || 'free' }
+}
 
 exports.main = async (event = {}) => {
   const wxContext = cloud.getWXContext()
@@ -174,7 +204,8 @@ exports.main = async (event = {}) => {
   if (!quality.ok) return { code: 422, message: `曲谱结构校验未通过：${quality.errors.join('；')}` }
 
   const user = await ensureUser(openid, now)
-  if ((user.generation_quota || 0) <= 0 && user.membership_type === 'free') return { code: 403, message: '今日免费额度已用完，请明日再试' }
+  const quota = await prepareQuota(user, now)
+  if (!quota.ok) return { code: 403, message: `今日免费生成次数已用完，明天将自动恢复 ${quota.limit || DAILY_FREE_LIMIT} 次。` }
 
   const rawText = sectionsToRawText(normalized.sections)
   const isPublic = Boolean(event.is_public) && !isWebChords
@@ -211,9 +242,8 @@ exports.main = async (event = {}) => {
     updated_at: now,
   }
   const songResult = await songs.add({ data })
-  const nextGenerationQuota = Math.max(0, Number(user.generation_quota || 0) - 1)
   const nextTotalGenerated = Number(user.total_generated || 0) + 1
   const nextWorksCount = Number(user.works_count || 0) + 1
-  await users.doc(user._id).update({ data: { generation_quota: _.inc(-1), total_generated: _.inc(1), works_count: _.inc(1), updated_at: now } })
-  return { code: 0, data: { songId: songResult._id, title: data.title, style: data.style, song_key: data.song_key, bpm: data.bpm, capo: data.capo, difficulty: data.difficulty, strumming: data.strumming, chords: normalized.chords, sections: normalized.sections, practiceTips: normalized.practiceTips, source_type: data.source_type, tabOutputType: 'both', imageTabPages, modelStatus, modelErrorMessage: '', qualitySummary: quality.summary, user: { id: user._id, generation_quota: nextGenerationQuota, total_generated: nextTotalGenerated, works_count: nextWorksCount, membership_type: user.membership_type || 'free' } } }
+  await users.doc(user._id).update({ data: { ...buildQuotaSuccessUpdate(quota, now), total_generated: _.inc(1), works_count: _.inc(1) } })
+  return { code: 0, data: { songId: songResult._id, title: data.title, style: data.style, song_key: data.song_key, bpm: data.bpm, capo: data.capo, difficulty: data.difficulty, strumming: data.strumming, chords: normalized.chords, sections: normalized.sections, practiceTips: normalized.practiceTips, source_type: data.source_type, tabOutputType: 'both', imageTabPages, modelStatus, modelErrorMessage: '', qualitySummary: quality.summary, user: buildQuotaUserResult(user, quota, nextTotalGenerated, nextWorksCount) } }
 }
