@@ -1,12 +1,12 @@
 <template>
   <view class="benefits-page">
-    <AppNavBar title="AI权益说明" subtitle="当前版本免费开放体验" show-back />
+    <AppNavBar title="功能说明" subtitle="当前版本免费开放体验" show-back />
 
     <view class="container">
       <view class="hero-card">
-        <view class="hero-title">谱灵 AI 创作权益</view>
+        <view class="hero-title">谱灵 AI 工具说明</view>
         <view class="hero-desc">当前小程序为免费体验版本，可使用搜谱、AI生成TXT谱、图片六线谱和调音功能。</view>
-        <view class="hero-pill">无需购买 · 无交易服务</view>
+        <view class="hero-pill">免费体验 · 工具服务</view>
       </view>
 
       <view class="section-title">当前可用能力</view>
@@ -22,7 +22,7 @@
 
       <view class="notice-card">
         <view class="notice-title">说明</view>
-        <view class="notice-text">当前版本不提供会员购买、充值、提现、订单或任何支付交易服务。后续如需开放商业化能力，将在符合平台要求后另行上线。</view>
+        <view class="notice-text">当前版本仅开放基础工具体验，相关商业化能力暂不开放。</view>
       </view>
 
       <view class="primary-btn" @tap="goCreate">开始搜谱</view>
