@@ -37,17 +37,12 @@
       </view>
     </view>
 
-    <view class="notice">请选择生成类型。TXT 谱适合编辑和练习；图片六线谱适合像看谱图一样上下滚动阅读。</view>
+    <view class="notice">系统会同时生成 TXT 弹唱谱和图片六线谱，详情页可自由切换查看。</view>
 
     <view class="actions">
       <view class="ghost-btn" @tap="emit('back')">返回结果</view>
-    </view>
-    <view class="generate-row">
-      <view class="secondary-btn" :class="{ loading }" @tap="generateType('txt')">
-        {{ loading ? '生成中' : '生成TXT谱' }}
-      </view>
-      <view class="image-btn" :class="{ loading }" @tap="generateType('image')">
-        {{ loading ? '生成中' : '生成图片六线谱' }}
+      <view class="generate-btn" :class="{ loading }" @tap="generateFullTab">
+        {{ loading ? '生成中' : '生成完整曲谱' }}
       </view>
     </view>
   </view>
@@ -56,7 +51,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { WebSearchReference, WebSongCandidate } from '@/api/webSearch'
-import type { TabOutputType } from '@/api/ai'
 
 const props = withDefaults(defineProps<{
   candidate: WebSongCandidate
@@ -74,8 +68,8 @@ const emit = defineEmits<{
 const confidenceText = computed(() => `${Math.round((props.candidate.confidence || 0) * 100)}%`)
 const displayReferences = computed(() => (props.candidate.tabReferences?.length ? props.candidate.tabReferences : props.candidate.references || []).slice(0, 8))
 
-function generateType(type: TabOutputType) {
-  ;(props.candidate as any).preferred_output_type = type
+function generateFullTab() {
+  ;(props.candidate as any).preferred_output_type = 'both'
   emit('generate')
 }
 
@@ -124,11 +118,9 @@ function getRefTypeLabel(ref: WebSearchReference) {
 .open-btn { width: 74rpx; height: 48rpx; margin-left: 12rpx; border-radius: 999rpx; background: #0BA45A; color: #FFFFFF; font-size: 21rpx; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .notice { margin-top: 18rpx; color: #A06A15; background: #FFF8E8; border-radius: 18rpx; padding: 14rpx 18rpx; font-size: 22rpx; line-height: 32rpx; }
 .actions { margin-top: 22rpx; display: flex; gap: 14rpx; }
-.generate-row { margin-top: 14rpx; display: flex; gap: 14rpx; }
-.ghost-btn, .secondary-btn, .image-btn { flex: 1; height: 68rpx; border-radius: 999rpx; display: flex; align-items: center; justify-content: center; font-size: 25rpx; font-weight: 800; }
+.ghost-btn, .generate-btn { flex: 1; height: 68rpx; border-radius: 999rpx; display: flex; align-items: center; justify-content: center; font-size: 25rpx; font-weight: 800; }
 .ghost-btn { background: #F6FAF8; color: #5F6B65; border: 1rpx solid #E8EFEA; }
-.secondary-btn { background: #EAF8F0; color: #0BA45A; border: 1rpx solid #D8F0E4; }
-.image-btn { background: #17231E; color: #FFFFFF; border: 1rpx solid #17231E; }
-.secondary-btn.loading, .image-btn.loading { opacity: .68; }
+.generate-btn { background: #17231E; color: #FFFFFF; border: 1rpx solid #17231E; }
+.generate-btn.loading { opacity: .68; }
 @keyframes cardIn { from { opacity: 0; transform: translateY(12rpx); } to { opacity: 1; transform: translateY(0); } }
 </style>
