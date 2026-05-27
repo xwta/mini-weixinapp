@@ -1,86 +1,29 @@
 <template>
   <view class="page">
-    <AppNavbar title="我的订单" @back="goBack" />
+    <AppNavbar title="功能说明" @back="goBack" />
 
-    <view class="list">
-      <view v-for="item in orders" :key="item.id" class="order-card">
-        <view class="order-top">
-          <view>
-            <view class="order-title">{{ productName(item.product_code) }}</view>
-            <view class="order-no">{{ item.order_no }}</view>
-          </view>
-          <view class="status">{{ statusText(item.payment_status) }}</view>
-        </view>
-        <view class="order-meta">
-          <text>¥{{ item.amount }}</text>
-          <text>{{ item.payment_method || 'wechat_pay_mock' }}</text>
-        </view>
-        <view class="mock-tip">当前为 mock 支付订单，仅用于前端流程调试。</view>
+    <view class="content">
+      <view class="safe-card">
+        <view class="safe-icon">◎</view>
+        <view class="safe-title">当前版本免费开放体验</view>
+        <view class="safe-desc">谱灵 AI 当前提供搜谱、AI生成曲谱、图片六线谱阅读、收藏和练习记录等工具能力。</view>
       </view>
 
-      <view v-if="!orders.length && !loading" class="empty-card">
-        <view class="empty-icon">◎</view>
-        <view class="empty-title">暂无订单</view>
-        <view class="empty-desc">开通会员后，订单会出现在这里。</view>
-        <view class="empty-btn" @tap="goMembership">去会员中心</view>
+      <view class="notice-card">
+        <view class="notice-title">版本说明</view>
+        <view class="notice-text">当前个人主体版本仅开放基础工具体验，相关商业化能力暂不开放。</view>
       </view>
+
+      <view class="primary-btn" @tap="goHome">返回搜谱</view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
 import AppNavbar from '@/components/base/AppNavbar.vue'
-import { getMyOrders, type Order } from '@/api/orders'
-import { loginWithWechatProfile } from '@/api/auth'
-import { useAuthStore } from '@/stores/auth'
 
-const orders = ref<Order[]>([])
-const loading = ref(false)
-
-onShow(loadOrders)
-
-async function ensureLogin() {
-  const auth = useAuthStore()
-  if (auth.isLoggedIn) return
-  await loginWithWechatProfile({ nickname: '谱灵用户' })
-}
-
-async function loadOrders() {
-  loading.value = true
-  try {
-    await ensureLogin()
-    const result = await getMyOrders(1, 50)
-    orders.value = result.items || []
-  } catch (error) {
-    console.log('orders load failed', error)
-    orders.value = []
-  } finally {
-    loading.value = false
-  }
-}
-
-function productName(code: string) {
-  const map: Record<string, string> = {
-    vip_month: '月度会员',
-    vip_quarter: '季度会员',
-    vip_year: '年度会员',
-  }
-  return map[code] || code || '会员套餐'
-}
-
-function statusText(status: string) {
-  const map: Record<string, string> = {
-    pending: '待支付',
-    paid: '已支付',
-    closed: '已关闭',
-  }
-  return map[status] || status || '未知'
-}
-
-function goMembership() {
-  uni.navigateTo({ url: '/pages/membership/index' })
+function goHome() {
+  uni.reLaunch({ url: '/pages/chat/index' })
 }
 
 function goBack() {
@@ -90,17 +33,13 @@ function goBack() {
 
 <style scoped>
 .page { width: 750rpx; min-height: 100vh; background: #F6FBF8; padding-bottom: 48rpx; box-sizing: border-box; }
-.list { padding: 24rpx 32rpx 0; box-sizing: border-box; }
-.order-card { width: 686rpx; padding: 28rpx; margin-bottom: 20rpx; box-sizing: border-box; border-radius: 24rpx; background: #FFFFFF; border: 1rpx solid #E8EFEA; box-shadow: 0 8rpx 28rpx rgba(18,52,36,.06); }
-.order-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20rpx; }
-.order-title { color: #17231E; font-size: 32rpx; font-weight: 800; }
-.order-no { margin-top: 8rpx; color: #A4AEA8; font-size: 22rpx; }
-.status { height: 52rpx; padding: 0 22rpx; border-radius: 999rpx; background: #F0FBF5; color: #0BA45A; display: flex; align-items: center; font-size: 23rpx; font-weight: 700; flex-shrink: 0; }
-.order-meta { margin-top: 24rpx; display: flex; align-items: center; justify-content: space-between; color: #17231E; font-size: 28rpx; font-weight: 800; }
-.mock-tip { margin-top: 18rpx; color: #6B756F; font-size: 23rpx; line-height: 34rpx; }
-.empty-card { width: 686rpx; padding: 72rpx 32rpx; border-radius: 28rpx; background: #FFFFFF; border: 1rpx solid #E8EFEA; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; }
-.empty-icon { width: 96rpx; height: 96rpx; border-radius: 32rpx; background: #EAF8F0; color: #0BA45A; display: flex; align-items: center; justify-content: center; font-size: 40rpx; font-weight: 800; }
-.empty-title { margin-top: 24rpx; color: #17231E; font-size: 30rpx; font-weight: 800; }
-.empty-desc { margin-top: 10rpx; color: #6B756F; font-size: 24rpx; text-align: center; }
-.empty-btn { margin-top: 28rpx; height: 64rpx; padding: 0 30rpx; border-radius: 999rpx; background: #0BA45A; color: #FFFFFF; display: flex; align-items: center; font-size: 25rpx; font-weight: 800; }
+.content { padding: 32rpx; box-sizing: border-box; }
+.safe-card { width: 686rpx; padding: 72rpx 36rpx; border-radius: 32rpx; background: #FFFFFF; border: 1rpx solid #E8EFEA; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.safe-icon { width: 104rpx; height: 104rpx; border-radius: 32rpx; background: #EAF8F0; color: #0BA45A; display: flex; align-items: center; justify-content: center; font-size: 44rpx; font-weight: 900; }
+.safe-title { margin-top: 28rpx; color: #17231E; font-size: 34rpx; line-height: 44rpx; font-weight: 900; }
+.safe-desc { margin-top: 14rpx; color: #6B756F; font-size: 25rpx; line-height: 40rpx; }
+.notice-card { width: 686rpx; margin-top: 24rpx; padding: 26rpx; box-sizing: border-box; border-radius: 24rpx; background: #FFF8E8; color: #9A6714; }
+.notice-title { font-size: 27rpx; line-height: 34rpx; font-weight: 900; }
+.notice-text { margin-top: 10rpx; font-size: 24rpx; line-height: 38rpx; }
+.primary-btn { width: 686rpx; height: 88rpx; margin-top: 32rpx; border-radius: 999rpx; background: #0BA45A; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 28rpx; font-weight: 900; }
 </style>
