@@ -18,7 +18,7 @@ export interface ChordsPayload {
   rhythm: string
 }
 
-export type TabOutputType = 'txt' | 'image'
+export type TabOutputType = 'txt' | 'image' | 'both'
 
 export interface WebChordsPayload {
   title: string
@@ -61,7 +61,7 @@ function syncQuotaFromResult(result: any) {
 }
 
 function resolveOutputType(payload: WebChordsPayload): TabOutputType {
-  return payload.output_type || (payload.web_context as any)?.preferred_output_type || 'txt'
+  return payload.output_type || 'both'
 }
 
 export async function createSongwriting(payload: SongwritingPayload) {
