@@ -4,7 +4,7 @@
       <view class="avatar">{{ avatarText }}</view>
       <view class="profile-main">
         <text class="nickname">{{ auth.user?.nickname || '谱灵用户' }}</text>
-        <text class="desc">{{ auth.isLoggedIn ? '吉他谱练习与创作中心' : '登录后同步作品、收藏和额度' }}</text>
+        <text class="desc">{{ auth.isLoggedIn ? '吉他谱练习与创作中心' : '登录后同步作品、收藏和创作记录' }}</text>
       </view>
       <view class="edit-btn" @tap="auth.isLoggedIn ? refreshUser() : handleLogin()">{{ auth.isLoggedIn ? '同步' : '登录' }}</view>
     </view>
@@ -13,12 +13,12 @@
       <view v-if="FEATURES.ENABLE_TAB_SEARCH" class="quick-item" @tap="goMain('/pages/chat/index')">
         <text class="quick-icon">⌕</text>
         <text class="quick-title">搜谱</text>
-        <text class="quick-desc">找图片谱 / 文本谱</text>
+        <text class="quick-desc">TXT / 图片谱</text>
       </view>
       <view v-if="FEATURES.ENABLE_TUNER" class="quick-item" @tap="goMain('/pages/community/index')">
         <text class="quick-icon">♬</text>
         <text class="quick-title">调音</text>
-        <text class="quick-desc">麦克风自动识别</text>
+        <text class="quick-desc">麦克风识别</text>
       </view>
       <view class="quick-item" @tap="openMenu('/pages/record/index?type=practice')">
         <text class="quick-icon">▶</text>
@@ -27,12 +27,12 @@
       </view>
     </view>
 
-    <view v-if="FEATURES.ENABLE_AI_GENERATE" class="quota-card" @tap="goMembership">
+    <view v-if="FEATURES.ENABLE_AI_GENERATE" class="quota-card">
       <view>
-        <text class="quota-title">AI 编配额度</text>
+        <text class="quota-title">AI 创作额度</text>
         <text class="quota-desc">今日还可生成 {{ auth.user?.generation_quota || 0 }} 次</text>
       </view>
-      <view v-if="FEATURES.ENABLE_MEMBERSHIP" class="quota-action">升级</view>
+      <view class="quota-action">免费体验</view>
     </view>
 
     <view class="stats-row">
@@ -46,13 +46,13 @@
       </view>
       <view class="stat-item">
         <text class="stat-num">{{ recentImports.length }}</text>
-        <text class="stat-label">导入</text>
+        <text class="stat-label">最近</text>
       </view>
     </view>
 
     <view v-if="recentImports.length" class="section-card">
       <view class="section-head">
-        <text class="section-title">最近导入</text>
+        <text class="section-title">最近曲谱</text>
         <text class="section-action" @tap="clearImports">清空</text>
       </view>
       <view v-for="item in recentImports.slice(0, 4)" :key="item.songId" class="recent-item" @tap="openSong(item.songId)">
@@ -85,6 +85,10 @@
       </view>
     </view>
 
+    <view class="review-note">
+      当前版本为免费体验，不提供会员购买、订单、充值、提现或支付交易服务。
+    </view>
+
     <view v-if="auth.isLoggedIn" class="logout-btn" @tap="handleLogout">退出登录</view>
 
     <AppBottomTab active="mine" @change="handleTabChange" />
@@ -115,9 +119,8 @@ const menus = computed(() => [
   { icon: '♡', label: '我的收藏', path: '/pages/favorites/index', show: true },
   { icon: '▶', label: '练习记录', path: '/pages/record/index?type=practice', show: true },
   { icon: '♬', label: '调音器', path: '/pages/community/index', show: FEATURES.ENABLE_TUNER },
-  { icon: '◎', label: '我的订单', path: '/pages/orders/index', show: FEATURES.ENABLE_ORDERS },
+  { icon: '◎', label: 'AI权益说明', path: '/pages/membership/index', show: true },
   { icon: '✉', label: '消息通知', path: '/pages/notifications/index', show: FEATURES.ENABLE_NOTIFICATIONS },
-  { icon: '⚙', label: '会员中心', path: '/pages/membership/index', show: FEATURES.ENABLE_MEMBERSHIP },
 ].filter(item => item.show))
 
 onShow(() => {
@@ -202,11 +205,6 @@ function openMenu(path: string) {
   uni.navigateTo({ url: path })
 }
 
-function goMembership() {
-  if (!FEATURES.ENABLE_MEMBERSHIP) return
-  uni.navigateTo({ url: '/pages/membership/index' })
-}
-
 function goMain(url: string) {
   uni.reLaunch({ url })
 }
@@ -257,5 +255,6 @@ function handleTabChange(value: string) {
 .menu-icon { width: 48rpx; font-size: 28rpx; color: #0BA45A; font-weight: 800; }
 .menu-label { font-size: 28rpx; color: #17231E; font-weight: 600; }
 .menu-arrow { font-size: 38rpx; color: #A4AEA8; }
+.review-note { width: 686rpx; margin-top: 24rpx; padding: 20rpx 24rpx; box-sizing: border-box; border-radius: 20rpx; background: #FFF8E8; color: #9A6714; font-size: 23rpx; line-height: 36rpx; }
 .logout-btn { width: 686rpx; height: 88rpx; margin-top: 24rpx; border-radius: 999rpx; color: #E5484D; background: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 26rpx; font-weight: 700; }
 </style>
