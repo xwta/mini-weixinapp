@@ -3,14 +3,14 @@
     <scroll-view class="content" scroll-y :scroll-top="scrollTop" :scroll-with-animation="true">
       <view class="hero">
         <view class="hero-title">谱灵 AI</view>
-        <view class="hero-desc">输入歌曲名，直接生成可练习完整吉他谱。</view>
+        <view class="hero-desc">输入歌曲名，命中可靠曲谱结构后生成可练习完整谱。</view>
       </view>
 
       <view class="mode-grid">
         <view class="mode-card active" @tap="selectMode('search')">
           <view class="mode-icon">⌕</view>
           <view class="mode-title">搜谱</view>
-          <view class="mode-desc">生成 TXT 谱 + 图片六线谱</view>
+          <view class="mode-desc">先校验，再生成双谱</view>
         </view>
         <view class="mode-card" @tap="selectMode('practice')">
           <view class="mode-icon">▶</view>
@@ -68,12 +68,12 @@
           confirm-type="send"
           :disabled="loading"
           :focus="inputFocus"
-          :placeholder="loading ? '正在生成可练习曲谱...' : placeholder"
+          :placeholder="loading ? '正在检查曲谱结构...' : placeholder"
           @confirm="sendMessage"
           @blur="inputFocus = false"
         />
       </view>
-      <view :class="['send-btn', loading && 'loading']" @tap="sendMessage">{{ loading ? '生成中' : '发送' }}</view>
+      <view :class="['send-btn', loading && 'loading']" @tap="sendMessage">{{ loading ? '处理中' : '发送' }}</view>
     </view>
 
     <AppBottomTab active="chat" @change="handleTabChange" />
@@ -89,10 +89,12 @@ import AppBottomTab from '@/components/home/AppBottomTab.vue'
 import { loginWithWechatProfile } from '@/api/auth'
 import { createChords, createSongwriting, createWebChords } from '@/api/ai'
 import { searchSongs } from '@/api/songs'
+import { testSongProfile } from '@/api/songProfiles'
 import { useAuthStore } from '@/stores/auth'
 import { saveRecentSearch } from '@/utils/recent'
 import type { AiSongResult, Song } from '@/types'
 import type { WebSongCandidate } from '@/api/webSearch'
+import type { SongProfilePreview } from '@/api/songProfiles'
 
 interface ChatMessage { id: string; role: 'ai' | 'user'; content: string }
 interface ResultCardState { songId: string | number; title: string; chords: string }
@@ -103,11 +105,11 @@ const activeMode = ref<ModeValue>('search')
 const loading = ref(false)
 const scrollTop = ref(0)
 const inputFocus = ref(false)
-const placeholder = ref('输入歌名，直接生成吉他谱')
+const placeholder = ref('输入歌名，生成可靠吉他谱')
 const lastResult = ref<ResultCardState | null>(null)
 
 const messages = ref<ChatMessage[]>([
-  { id: 'welcome', role: 'ai', content: '直接输入歌曲名，我会生成一份可练习的完整吉他谱。为避免错谱，未收录可靠结构的歌曲不会强行生成。' },
+  { id: 'welcome', role: 'ai', content: '直接输入歌曲名，我会先检查是否收录可靠曲谱结构；命中后再生成 TXT 弹唱谱和图片六线谱，未命中不会强行生成错谱。' },
 ])
 
 onLoad((query) => {
@@ -119,7 +121,7 @@ onLoad((query) => {
 
 function selectMode(value: string) {
   activeMode.value = value as ModeValue
-  placeholder.value = value === 'search' ? '输入歌名，直接生成吉他谱' : value === 'practice' ? '输入歌名，生成后开始练习' : value === 'chord' ? '输入文本，智能匹配和弦' : '输入一句灵感开始创作'
+  placeholder.value = value === 'search' ? '输入歌名，生成可靠吉他谱' : value === 'practice' ? '输入歌名，生成后开始练习' : value === 'chord' ? '输入文本，智能匹配和弦' : '输入一句灵感开始创作'
   inputFocus.value = true
 }
 
@@ -179,25 +181,23 @@ async function tryFindLocalSong(text: string) {
   }
 }
 
-function createDirectCandidate(text: string, localSong?: Song | any): WebSongCandidate {
-  const title = localSong?.title || normalizeSearchText(text) || text
-  const artist = getSongArtist(localSong)
+function createCandidateFromProfile(profile: SongProfilePreview, fallbackText: string, localSong?: Song | any): WebSongCandidate {
   return {
-    title,
-    artist,
+    title: profile.title || localSong?.title || normalizeSearchText(fallbackText) || fallbackText,
+    artist: profile.artist || getSongArtist(localSong),
     album: localSong?.album || '',
-    confidence: localSong ? 0.92 : 0.76,
-    source: localSong ? 'local_song_index' : 'ai_direct',
-    summary: `已识别《${title}》，直接生成可练习完整曲谱。`,
+    confidence: 0.98,
+    source: profile.source || 'verified_profile',
+    summary: `已命中可靠曲谱结构：${profile.key}调 · ${profile.capo} · ${profile.bpm} BPM。`,
     references: [],
     tabReferences: [],
     preferred_output_type: 'both',
     arrangementHints: {
       outputPreference: 'both',
       difficulty: '新手',
-      possibleKeys: localSong?.song_key ? [localSong.song_key] : [],
-      possibleCapos: localSong?.capo ? [localSong.capo] : [],
-      possibleChords: localSong?.content_json?.chords || [],
+      possibleKeys: [profile.key].filter(Boolean),
+      possibleCapos: [profile.capo].filter(Boolean),
+      possibleChords: profile.chords || [],
       tabReferenceCount: 0,
       imageReferenceCount: 0,
       textReferenceCount: 0,
@@ -210,12 +210,26 @@ function isProfileMissingMessage(message = '') {
   return /暂未收录|暂未匹配|可靠曲谱结构|避免生成错谱/i.test(message)
 }
 
+async function precheckSongProfile(text: string) {
+  const result = await testSongProfile(text)
+  if (!result.matched || !result.profile) return result
+  return result
+}
+
 async function generateFullTabFromSongText(text: string, localSong?: Song | any) {
+  await streamAiMessage(`正在检查《${normalizeSearchText(text) || text}》是否收录可靠曲谱结构。`)
+  const profileCheck = await precheckSongProfile(text)
+  if (!profileCheck.matched || !profileCheck.profile) {
+    await streamAiMessage(`${profileCheck.message || `暂未收录《${normalizeSearchText(text) || text}》的可靠曲谱结构。`}\n\n为了避免生成不符合真实歌曲的错谱，暂不自动生成。你可以试试：成都、晴天、海阔天空、平凡之路、半壶纱。`)
+    return
+  }
+
+  const profile = profileCheck.profile
   await ensureLogin()
-  const candidate = createDirectCandidate(text, localSong)
-  await streamAiMessage(`已识别《${candidate.title}》${candidate.artist ? ` - ${candidate.artist}` : ''}，正在检查可靠曲谱结构。`)
+  const candidate = createCandidateFromProfile(profile, text, localSong)
+  await streamAiMessage(`已命中《${profile.title}》${profile.artist ? ` - ${profile.artist}` : ''} 的可靠结构：${profile.key}调 · ${profile.capo} · ${profile.bpm} BPM。正在生成完整曲谱。`)
   try {
-    const result = await createWebChords({ title: candidate.title, artist: candidate.artist, key: String(localSong?.song_key || 'C'), difficulty: '新手', web_context: candidate, output_type: 'both' })
+    const result = await createWebChords({ title: candidate.title, artist: candidate.artist, key: profile.key || 'C', difficulty: '新手', web_context: candidate, output_type: 'both' })
     if (!result.songId) { await streamAiMessage('曲谱已生成，但未返回曲谱编号。请稍后重试。'); return }
     await streamAiMessage(`已生成《${result.title}》。包含 TXT 弹唱谱和图片六线谱，正在打开详情页。`)
     lastResult.value = { songId: result.songId, title: result.title, chords: `${normalizeChords(result)} · 可练习完整曲谱` }
@@ -223,7 +237,7 @@ async function generateFullTabFromSongText(text: string, localSong?: Song | any)
   } catch (error: any) {
     const message = error?.message || ''
     if (isProfileMissingMessage(message)) {
-      await streamAiMessage(`${message}\n\n这不是生成失败，是为了避免输出不符合真实歌曲的错谱。你可以换一首常见歌曲，例如：成都、晴天、海阔天空、平凡之路、半壶纱。`)
+      await streamAiMessage(`${message}\n\n已停止生成，避免输出不符合真实歌曲的错谱。`)
       return
     }
     throw error
