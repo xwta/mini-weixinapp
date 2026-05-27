@@ -2,102 +2,33 @@ const cloud = require('wx-server-sdk')
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 
-const db = cloud.database()
-const orders = db.collection('orders')
-
-const PRODUCTS = [
-  {
-    code: 'vip_month',
-    name: '月度会员',
-    product_type: 'vip',
-    amount: 29,
-    description: '适合持续创作用户',
-    benefits: ['更多 AI 生成次数', '优先体验新功能'],
-  },
-  {
-    code: 'vip_quarter',
-    name: '季度会员',
-    product_type: 'vip',
-    amount: 79,
-    description: '3 个月连续权益',
-    benefits: ['生成额度更高', '练习模式增强'],
-  },
-  {
-    code: 'vip_year',
-    name: '年度会员',
-    product_type: 'vip',
-    amount: 299,
-    description: '全年最优方案',
-    benefits: ['全年高额度', '长期权益'],
-  },
+const FREE_FEATURES = [
+  { code: 'ai_tab_search', name: 'AI搜谱', description: '输入歌名或歌手，查找曲谱资源。', benefits: ['搜谱', '生成TXT谱', '生成图片六线谱'] },
+  { code: 'tuner', name: '调音器', description: '辅助吉他标准音调音练习。', benefits: ['麦克风识别', '标准音参考'] },
 ]
 
-function paginate(items = [], page = 1, pageSize = 20) {
-  const p = Number(page || 1)
-  const size = Number(pageSize || 20)
-  const start = Math.max(0, (p - 1) * size)
+function emptyList(page = 1, pageSize = 20) {
   return {
-    total: items.length,
-    page: p,
-    page_size: size,
-    items: items.slice(start, start + size),
+    total: 0,
+    page: Number(page || 1),
+    page_size: Number(pageSize || 20),
+    items: [],
   }
 }
 
 exports.main = async (event = {}) => {
-  const openid = cloud.getWXContext().OPENID || event.openid || "debug-openid"
   const action = event.action || 'products'
-  const now = new Date()
 
   if (action === 'products') {
-    return { code: 0, data: PRODUCTS }
-  }
-
-  if (action === 'create') {
-    const productCode = String(event.product_code || '')
-    const product = PRODUCTS.find((item) => item.code === productCode)
-    if (!product) return { code: 400, message: '无效的套餐' }
-
-    const orderNo = `PL${Date.now()}${Math.floor(Math.random() * 1000)}`
-    const data = {
-      order_no: orderNo,
-      user_openid: openid,
-      product_code: product.code,
-      product_type: product.product_type,
-      amount: product.amount,
-      payment_status: 'pending',
-      payment_method: 'wechat_pay_mock',
-      created_at: now,
-      updated_at: now,
-    }
-
-    const created = await orders.add({ data })
-    return {
-      code: 0,
-      data: {
-        order: {
-          id: created._id,
-          ...data,
-        },
-        payment_params: {
-          mode: 'mock',
-          order_no: orderNo,
-        },
-      },
-    }
+    return { code: 0, data: FREE_FEATURES }
   }
 
   if (action === 'mine') {
-    const page = Number(event.page || 1)
-    const pageSize = Math.min(50, Number(event.page_size || 20))
+    return { code: 0, data: emptyList(event.page, event.page_size) }
+  }
 
-    const result = await orders.where({ user_openid: openid }).orderBy('created_at', 'desc').get()
-    const list = result.data.map((item) => ({
-      id: item._id,
-      ...item,
-    }))
-
-    return { code: 0, data: paginate(list, page, pageSize) }
+  if (action === 'create') {
+    return { code: 403, message: '当前版本仅开放免费工具体验' }
   }
 
   return { code: 400, message: `Unknown action: ${action}` }
