@@ -18,7 +18,7 @@
             <view class="author-avatar">♪</view>
             <view class="author-info">
               <view class="author-name">{{ arrangerLabel }}</view>
-              <view class="author-desc">适合个人弹唱练习</view>
+              <view class="author-desc">{{ hasImageTabPages ? '图片六线谱与TXT谱双模式' : '适合个人弹唱练习' }}</view>
             </view>
             <view class="favorite-btn" @tap.stop="handleFavorite">
               <text class="heart">♡</text>
@@ -46,18 +46,23 @@
           </view>
         </view>
 
+        <view v-if="hasImageTabPages" class="reader-switch card">
+          <view :class="['switch-item', isImageReader && 'active']" @tap="setReaderMode('image')">图片六线谱</view>
+          <view :class="['switch-item', !isImageReader && 'active']" @tap="setReaderMode('txt')">TXT谱</view>
+        </view>
+
         <view class="tool-card card">
-          <view class="tool-btn" @tap="transposeDown">
+          <view :class="['tool-btn', !isImageReader && 'active-soft']" @tap="transposeDown">
             <text class="tool-icon">↓</text>
             <text>降调</text>
           </view>
-          <view class="tool-btn" @tap="transposeUp">
+          <view :class="['tool-btn', !isImageReader && 'active-soft']" @tap="transposeUp">
             <text class="tool-icon">↑</text>
             <text>升调</text>
           </view>
           <view class="tool-btn active" @tap="startPractice">
             <text class="tool-icon">▤</text>
-            <text>滚谱</text>
+            <text>{{ isImageReader ? '读谱' : '滚谱' }}</text>
           </view>
           <view class="tool-btn" @tap="openMetronome">
             <text class="tool-icon">△</text>
@@ -65,12 +70,36 @@
           </view>
         </view>
 
-        <view v-if="transposeOffset" class="transpose-card">
+        <view v-if="transposeOffset && !isImageReader" class="transpose-card">
           已转调 {{ transposeOffset > 0 ? `+${transposeOffset}` : transposeOffset }} 半音，原调 {{ originalKey }}。
           <text class="reset-link" @tap="resetTranspose">恢复原调</text>
         </view>
 
-        <view class="sheet-card card">
+        <view v-if="isImageReader" class="image-reader-card">
+          <view class="reader-head">
+            <view>
+              <view class="reader-title">图片六线谱阅读</view>
+              <view class="reader-desc">上下滑动查看，适合快速照谱练习</view>
+            </view>
+            <view class="page-count">{{ imageTabPages.length }}页</view>
+          </view>
+
+          <view v-for="(page, pageIndex) in imageTabPages" :key="`${page.title}-${pageIndex}`" class="tab-page">
+            <view class="paper-head">
+              <view class="paper-title">{{ page.title || `第${pageIndex + 1}页` }}</view>
+              <view class="paper-meta">{{ displayKey }} · {{ song.capo || '0品' }} · {{ song.bpm || 86 }} BPM</view>
+            </view>
+
+            <view v-for="(block, blockIndex) in page.blocks" :key="`${pageIndex}-${blockIndex}`" class="tab-block">
+              <view v-if="block.type === 'section'" class="tab-section-title">{{ block.text }}</view>
+              <view v-else class="six-line-wrap">
+                <text v-for="(tabLine, lineIndex) in block.lines" :key="lineIndex" class="six-line">{{ tabLine }}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <view v-else class="sheet-card card">
           <view v-for="section in transposedSections" :key="section.name" class="sheet-section">
             <view class="section-title-row">
               <view class="section-mark" />
@@ -111,7 +140,7 @@
     <view v-if="song" class="bottom-action-bar">
       <view class="practice-btn" @tap="startPractice">
         <text class="play-icon">▶</text>
-        <text>开始练习</text>
+        <text>{{ isImageReader ? '开始读谱' : '开始练习' }}</text>
       </view>
     </view>
   </view>
@@ -127,8 +156,20 @@ import { loginWithWechatProfile } from '../../api/auth'
 import { useAuthStore } from '../../stores/auth'
 import type { Song, SongSection } from '../../types'
 
+interface ImageTabBlock {
+  type?: 'section' | 'tab'
+  text?: string
+  lines?: string[]
+}
+
+interface ImageTabPage {
+  title?: string
+  blocks: ImageTabBlock[]
+}
+
 const song = ref<Song | null>(null)
 const transposeOffset = ref(0)
+const readerMode = ref<'auto' | 'image' | 'txt'>('auto')
 
 const SHARP_NOTES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
 const FLAT_TO_SHARP: Record<string, string> = {
@@ -153,9 +194,22 @@ const displayTitle = computed(() => {
 
 const originalKey = computed(() => normalizeNoteName(String(song.value?.song_key || 'C').replace(/调/g, '')) || 'C')
 const displayKey = computed(() => transposeNote(originalKey.value, transposeOffset.value))
+const imageTabPages = computed<ImageTabPage[]>(() => {
+  const pages = song.value?.content_json?.imageTabPages
+  return Array.isArray(pages) ? pages.filter((page) => Array.isArray(page?.blocks)) : []
+})
+const hasImageTabPages = computed(() => imageTabPages.value.length > 0)
+const isImageReader = computed(() => {
+  if (!hasImageTabPages.value) return false
+  if (readerMode.value === 'image') return true
+  if (readerMode.value === 'txt') return false
+  return song.value?.content_json?.tabOutputType === 'image' || song.value?.source_type === 'ai_web_image_tab' || song.value?.source_type === 'ai_image_tab'
+})
 
 const sourceLabel = computed(() => {
   if (song.value?.source_type === 'web_txt') return '文本谱导入'
+  if (song.value?.source_type === 'ai_web_image_tab' || song.value?.source_type === 'ai_image_tab') return 'AI图片六线谱'
+  if (song.value?.source_type === 'ai_web_txt') return 'AI生成TXT谱'
   if (song.value?.source_type === 'ai_web') return 'AI编配'
   if (song.value?.source_type === 'ai') return 'AI原创'
   if (song.value?.source_type === 'seed' || song.value?.source_type === 'seed_bulk') return '歌曲索引'
@@ -163,7 +217,7 @@ const sourceLabel = computed(() => {
 })
 
 const arrangerLabel = computed(() => {
-  if (song.value?.source_type === 'ai' || song.value?.source_type === 'ai_web') return '谱灵 AI 编配'
+  if (String(song.value?.source_type || '').startsWith('ai')) return '谱灵 AI 编配'
   return song.value?.artist_name || '曲谱资源'
 })
 
@@ -200,6 +254,7 @@ const practiceTips = computed<string[]>(() => {
 
 const sourceInfo = computed(() => {
   const content = song.value?.content_json
+  if (content?.copyrightNotice) return content.copyrightNotice
   if (content?.sourceTitle) return content.sourceTitle
   if (content?.sourceUrl) return content.sourceUrl
   return ''
@@ -209,6 +264,10 @@ onLoad(async (query) => {
   const id = String(query?.id || '')
   if (id) song.value = await getSongDetail(id)
 })
+
+function setReaderMode(mode: 'image' | 'txt') {
+  readerMode.value = mode
+}
 
 function normalizeNoteName(note = '') {
   const clean = note.replace(/♯/g, '#').replace(/\s/g, '')
@@ -274,15 +333,28 @@ function goBack() {
 }
 
 function startPractice() {
-  if (song.value) uni.navigateTo({ url: `/pages/practice/index?id=${song.value.id}&transpose=${transposeOffset.value}` })
+  if (!song.value) return
+  if (isImageReader.value) {
+    uni.showToast({ title: '已进入图片六线谱阅读', icon: 'none' })
+    return
+  }
+  uni.navigateTo({ url: `/pages/practice/index?id=${song.value.id}&transpose=${transposeOffset.value}` })
 }
 
 function transposeUp() {
+  if (isImageReader.value) {
+    uni.showToast({ title: '图片谱请切换到TXT谱后转调', icon: 'none' })
+    return
+  }
   transposeOffset.value += 1
   uni.showToast({ title: `已升调至 ${displayKey.value}`, icon: 'none' })
 }
 
 function transposeDown() {
+  if (isImageReader.value) {
+    uni.showToast({ title: '图片谱请切换到TXT谱后转调', icon: 'none' })
+    return
+  }
   transposeOffset.value -= 1
   uni.showToast({ title: `已降调至 ${displayKey.value}`, icon: 'none' })
 }
@@ -319,12 +391,30 @@ function openMetronome() {
 .param-item { height: 112rpx; border-radius: 22rpx; background: #F6FAF8; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .param-label { color: #6B756F; font-size: 24rpx; line-height: 30rpx; }
 .param-value { margin-top: 12rpx; color: #0C7A42; font-size: 34rpx; line-height: 40rpx; font-weight: 900; }
+.reader-switch { margin-top: 24rpx; height: 82rpx; padding: 10rpx; border-radius: 28rpx; display: flex; gap: 10rpx; }
+.switch-item { flex: 1; border-radius: 20rpx; color: #6B756F; background: #F6FAF8; display: flex; align-items: center; justify-content: center; font-size: 25rpx; font-weight: 900; }
+.switch-item.active { color: #FFFFFF; background: #17231E; }
 .tool-card { margin-top: 30rpx; height: 114rpx; padding: 18rpx 20rpx; border-radius: 28rpx; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18rpx; }
 .tool-btn { height: 76rpx; border-radius: 18rpx; border: 1rpx solid #E3EBE7; background: #FFFFFF; color: #17231E; display: flex; align-items: center; justify-content: center; gap: 10rpx; font-size: 25rpx; font-weight: 800; }
 .tool-btn.active { color: #0C9D50; background: #EAF8F0; border-color: #D8F0E4; }
+.tool-btn.active-soft { color: #17231E; }
 .tool-icon { color: #10B15A; font-size: 36rpx; line-height: 36rpx; font-weight: 900; }
 .transpose-card { width: 686rpx; margin-top: 22rpx; padding: 18rpx 24rpx; box-sizing: border-box; border-radius: 22rpx; background: #FFF8E8; color: #9A6714; font-size: 24rpx; line-height: 34rpx; }
 .reset-link { margin-left: 18rpx; color: #0BA45A; font-weight: 900; }
+.image-reader-card { width: 686rpx; margin-top: 30rpx; }
+.reader-head { padding: 26rpx 28rpx; border-radius: 28rpx; background: #17231E; color: #FFFFFF; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 18rpx 38rpx rgba(23, 35, 30, .12); }
+.reader-title { font-size: 31rpx; line-height: 40rpx; font-weight: 900; }
+.reader-desc { margin-top: 6rpx; color: rgba(255,255,255,.72); font-size: 22rpx; line-height: 30rpx; }
+.page-count { height: 50rpx; padding: 0 18rpx; border-radius: 999rpx; background: rgba(255,255,255,.12); display: flex; align-items: center; justify-content: center; font-size: 22rpx; font-weight: 900; }
+.tab-page { margin-top: 24rpx; padding: 30rpx 24rpx 34rpx; border-radius: 26rpx; background: #FFFDF8; border: 1rpx solid #EFE7D8; box-shadow: 0 16rpx 42rpx rgba(92, 63, 21, 0.08); }
+.paper-head { padding-bottom: 20rpx; margin-bottom: 22rpx; border-bottom: 1rpx solid #E8DEC8; }
+.paper-title { color: #17231E; font-size: 30rpx; line-height: 38rpx; font-weight: 900; }
+.paper-meta { margin-top: 8rpx; color: #8B7657; font-size: 22rpx; line-height: 30rpx; }
+.tab-block + .tab-block { margin-top: 26rpx; }
+.tab-section-title { display: inline-flex; padding: 8rpx 16rpx; border-radius: 999rpx; background: #17231E; color: #FFFFFF; font-size: 22rpx; line-height: 30rpx; font-weight: 900; }
+.six-line-wrap { padding: 18rpx 16rpx; border-radius: 18rpx; background: #FFFFFF; border: 1rpx solid #EEE5D4; overflow-x: auto; }
+.six-line { display: block; color: #17231E; font-size: 22rpx; line-height: 32rpx; font-weight: 700; font-family: 'Courier New', monospace; white-space: pre; }
+.six-line:nth-last-child(-n + 2) { color: #0BA45A; font-weight: 900; }
 .sheet-card { margin-top: 30rpx; padding: 36rpx 32rpx; border-radius: 30rpx; }
 .sheet-section + .sheet-section { margin-top: 46rpx; padding-top: 44rpx; border-top: 1rpx dashed #D9E2DD; }
 .section-title-row { display: flex; align-items: center; margin-bottom: 30rpx; }
