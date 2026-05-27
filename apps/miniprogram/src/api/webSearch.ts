@@ -2,7 +2,7 @@ import { request } from './provider'
 
 export type WebSearchResultType = 'web' | 'image' | 'text' | 'fallback'
 export type WebSearchActionHint = 'preview' | 'import' | 'view_only'
-export type WebPreferredOutputType = 'txt' | 'image' | 'auto'
+export type WebPreferredOutputType = 'txt' | 'image' | 'both' | 'auto'
 
 export interface WebSearchReference {
   title: string
@@ -56,7 +56,7 @@ export interface WebSongCandidate {
   references: WebSearchReference[]
   tabReferences?: WebSearchReference[]
   arrangementHints?: WebArrangementHints
-  preferred_output_type?: 'txt' | 'image'
+  preferred_output_type?: 'txt' | 'image' | 'both'
   searchDebug?: Array<Record<string, any>>
 }
 
@@ -86,8 +86,8 @@ function buildSearchPayload(keyword: string, options: WebSongSearchOptions = {})
 }
 
 export async function searchWebSong(keyword: string, options: WebSongSearchOptions = {}) {
-  // 谱灵定位是“搜吉他谱工具”，用户输入歌名即可。
-  // 即使用户没有显式输入“吉他谱/和弦谱/弹唱谱”，也默认走 tabLookup。
+  // 谱灵定位是“搜吉他谱工具”，用户只需要输入歌名。
+  // 搜索结果默认进入“双谱生成”：TXT弹唱谱 + 图片六线谱。
   return request<WebSongSearchResult>('web-search', buildSearchPayload(keyword, options))
 }
 
