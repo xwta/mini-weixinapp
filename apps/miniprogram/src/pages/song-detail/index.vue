@@ -18,7 +18,7 @@
             <view class="author-avatar">♪</view>
             <view class="author-info">
               <view class="author-name">{{ arrangerLabel }}</view>
-              <view class="author-desc">{{ hasImageTabPages ? 'TXT谱与图片六线谱双模式' : '适合个人弹唱练习' }}</view>
+              <view class="author-desc">{{ hasImageTabPages ? '和弦结构谱 + 图片六线谱' : '适合个人练习使用' }}</view>
             </view>
             <view class="favorite-btn" @tap.stop="handleFavorite">
               <text class="heart">♡</text>
@@ -47,8 +47,13 @@
         </view>
 
         <view v-if="hasImageTabPages" class="reader-switch card">
-          <view :class="['switch-item', !isImageReader && 'active']" @tap="setReaderMode('txt')">TXT谱</view>
+          <view :class="['switch-item', !isImageReader && 'active']" @tap="setReaderMode('txt')">结构谱</view>
           <view :class="['switch-item', isImageReader && 'active']" @tap="setReaderMode('image')">图片六线谱</view>
+        </view>
+
+        <view class="notice-card">
+          <view class="notice-title">练习说明</view>
+          <view class="notice-text">当前页面展示的是简化和弦结构谱，不包含原曲歌词。下方文字为演奏提示，不是歌词。</view>
         </view>
 
         <view class="tool-card card">
@@ -86,14 +91,14 @@
 
           <view v-for="(page, pageIndex) in imageTabPages" :key="`${page.title}-${pageIndex}`" class="tab-page">
             <view class="paper-head">
-              <view class="paper-title">{{ page.title || `第${pageIndex + 1}页` }}</view>
+              <view class="paper-title">{{ cleanTabTitle(page.title || `第${pageIndex + 1}页`) }}</view>
               <view class="paper-meta">{{ displayKey }} · {{ song.capo || '0品' }} · {{ song.bpm || 86 }} BPM</view>
             </view>
 
             <view v-for="(block, blockIndex) in page.blocks" :key="`${pageIndex}-${blockIndex}`" class="tab-block">
-              <view v-if="block.type === 'section'" class="tab-section-title">{{ block.text }}</view>
+              <view v-if="block.type === 'section'" class="tab-section-title">{{ cleanTabTitle(block.text || '') }}</view>
               <view v-else class="six-line-wrap">
-                <text v-for="(tabLine, lineIndex) in normalizeTabLines(block.lines)" :key="lineIndex" class="six-line">{{ tabLine }}</text>
+                <text v-for="(tabLine, lineIndex) in normalizeTabLines(block.lines)" :key="lineIndex" class="six-line">{{ cleanTabTitle(tabLine) }}</text>
               </view>
             </view>
           </view>
@@ -110,7 +115,10 @@
               <view v-if="line.chordLine" class="chord-line">
                 <text v-for="(part, partIndex) in splitChordLine(line.chordLine)" :key="partIndex" :class="part.isChord ? 'chord-token' : 'chord-space'">{{ part.text }}</text>
               </view>
-              <view class="lyric-line">{{ line.lyricLine }}</view>
+              <view v-if="line.lyricLine" class="practice-hint">
+                <text class="hint-label">演奏提示</text>
+                <text class="hint-text">{{ line.lyricLine }}</text>
+              </view>
             </view>
           </view>
         </view>
@@ -169,7 +177,7 @@ const CHORD_RE = /^([A-G](?:#|b|♭)?)(.*)$/
 const CHORD_TOKEN_RE = /([A-G](?:#|b|♭)?(?:m|maj|min|dim|aug|sus|add)?(?:2|4|5|6|7|9|11|13)?(?:\/[A-G](?:#|b|♭)?)?)/g
 
 const displayTitle = computed(() => {
-  const title = song.value?.title || '练习曲谱'
+  const title = cleanTabTitle(song.value?.title || '练习曲谱')
   return title.startsWith('《') ? title : `《${title}》`
 })
 const originalKey = computed(() => normalizeNoteName(String(song.value?.song_key || 'C').replace(/调/g, '')) || 'C')
@@ -187,20 +195,16 @@ const isImageReader = computed(() => {
   return false
 })
 const sourceLabel = computed(() => {
-  if (isDualTab.value) return 'AI完整曲谱'
+  if (isDualTab.value) return '结构练习谱'
   if (song.value?.source_type === 'web_txt') return '文本谱导入'
-  if (song.value?.source_type === 'ai_web_image_tab' || song.value?.source_type === 'ai_image_tab') return 'AI图片六线谱'
-  if (song.value?.source_type === 'ai_web_txt') return 'AI生成TXT谱'
-  if (song.value?.source_type === 'ai_web') return 'AI编配'
-  if (song.value?.source_type === 'ai') return 'AI原创'
   if (song.value?.source_type === 'seed' || song.value?.source_type === 'seed_bulk') return '歌曲索引'
   return '练习曲谱'
 })
-const arrangerLabel = computed(() => String(song.value?.source_type || '').startsWith('ai') ? '谱灵 AI 编配' : song.value?.artist_name || '曲谱资源')
+const arrangerLabel = computed(() => String(song.value?.source_type || '').startsWith('ai') ? '谱灵曲谱工具' : song.value?.artist_name || '曲谱资源')
 const baseSections = computed<SongSection[]>(() => {
   const content = song.value?.content_json
   if (content?.sections?.length) return content.sections
-  return [{ name: '主歌', lines: [{ chordLine: '| C | G | Am | F |', lyricLine: '这里会显示弹唱练习谱' }] }]
+  return [{ name: '主歌', lines: [{ chordLine: '| C | G | Am | F |', lyricLine: '这里会显示弹唱练习提示' }] }]
 })
 const transposedSections = computed<SongSection[]>(() => {
   if (!transposeOffset.value) return baseSections.value
@@ -211,13 +215,14 @@ const practiceTips = computed<string[]>(() => {
   if (tips?.length) return tips
   return ['先用 80 BPM 慢速练习主歌', '注意换和弦时手型提前准备', '适合新手从简单扫弦开始']
 })
-const sourceInfo = computed(() => song.value?.content_json?.copyrightNotice || '')
+const sourceInfo = computed(() => '本谱为简化和弦结构练习谱，不包含原曲歌词，不声称官方或原版。')
 
 onLoad(async (query) => {
   const id = String(query?.id || '')
   if (id) song.value = await getSongDetail(id)
 })
 
+function cleanTabTitle(text = '') { return String(text || '').replace(/AI完整曲谱/g, '结构练习谱').replace(/AI生成/g, '练习') }
 function setReaderMode(mode: 'image' | 'txt') { readerMode.value = mode }
 function normalizeTabLines(lines?: string[]) { return Array.isArray(lines) ? lines.filter(Boolean) : [] }
 function normalizeNoteName(note = '') {
@@ -274,12 +279,12 @@ function startPractice() {
   uni.navigateTo({ url: `/pages/practice/index?id=${song.value.id}&transpose=${transposeOffset.value}` })
 }
 function transposeUp() {
-  if (isImageReader.value) { uni.showToast({ title: '图片谱请切换到TXT谱后转调', icon: 'none' }); return }
+  if (isImageReader.value) { uni.showToast({ title: '图片谱请切换到结构谱后转调', icon: 'none' }); return }
   transposeOffset.value += 1
   uni.showToast({ title: `已升调至 ${displayKey.value}`, icon: 'none' })
 }
 function transposeDown() {
-  if (isImageReader.value) { uni.showToast({ title: '图片谱请切换到TXT谱后转调', icon: 'none' }); return }
+  if (isImageReader.value) { uni.showToast({ title: '图片谱请切换到结构谱后转调', icon: 'none' }); return }
   transposeOffset.value -= 1
   uni.showToast({ title: `已降调至 ${displayKey.value}`, icon: 'none' })
 }
@@ -313,6 +318,9 @@ function openMetronome() { uni.showToast({ title: '节拍器即将开放', icon:
 .reader-switch { margin-top: 24rpx; height: 82rpx; padding: 10rpx; border-radius: 28rpx; display: flex; gap: 10rpx; }
 .switch-item { flex: 1; border-radius: 20rpx; color: #6B756F; background: #F6FAF8; display: flex; align-items: center; justify-content: center; font-size: 25rpx; font-weight: 900; }
 .switch-item.active { color: #FFFFFF; background: #17231E; }
+.notice-card { width: 686rpx; margin-top: 22rpx; padding: 22rpx 26rpx; box-sizing: border-box; border-radius: 24rpx; background: #FFF8E8; color: #8B6318; }
+.notice-title { font-size: 26rpx; line-height: 34rpx; font-weight: 900; }
+.notice-text { margin-top: 8rpx; font-size: 23rpx; line-height: 36rpx; }
 .tool-card { margin-top: 30rpx; height: 114rpx; padding: 18rpx 20rpx; border-radius: 28rpx; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18rpx; }
 .tool-btn { height: 76rpx; border-radius: 18rpx; border: 1rpx solid #E3EBE7; background: #FFFFFF; color: #17231E; display: flex; align-items: center; justify-content: center; gap: 10rpx; font-size: 25rpx; font-weight: 800; }
 .tool-btn.active { color: #0C9D50; background: #EAF8F0; border-color: #D8F0E4; }
@@ -338,11 +346,13 @@ function openMetronome() { uni.showToast({ title: '节拍器即将开放', icon:
 .section-title-row { display: flex; align-items: center; margin-bottom: 30rpx; }
 .section-mark { width: 8rpx; height: 34rpx; border-radius: 999rpx; background: #10B15A; margin-right: 16rpx; }
 .section-name { color: #17231E; font-size: 32rpx; line-height: 40rpx; font-weight: 900; }
-.sheet-line + .sheet-line { margin-top: 34rpx; }
+.sheet-line + .sheet-line { margin-top: 30rpx; }
 .chord-line { color: #10B15A; font-size: 32rpx; line-height: 40rpx; font-weight: 900; font-family: 'Courier New', monospace; white-space: pre-wrap; }
 .chord-token { color: #0BA45A; background: rgba(11, 164, 90, 0.08); border-radius: 8rpx; padding: 0 4rpx; }
 .chord-space { color: transparent; white-space: pre-wrap; }
-.lyric-line { margin-top: 12rpx; color: #17231E; font-size: 32rpx; line-height: 48rpx; font-weight: 500; }
+.practice-hint { margin-top: 14rpx; padding: 16rpx 18rpx; border-radius: 18rpx; background: #F6FAF8; color: #5F6C66; font-size: 25rpx; line-height: 38rpx; display: flex; gap: 12rpx; align-items: flex-start; }
+.hint-label { flex-shrink: 0; padding: 3rpx 10rpx; border-radius: 999rpx; background: #EAF8F0; color: #0BA45A; font-size: 21rpx; line-height: 30rpx; font-weight: 900; }
+.hint-text { flex: 1; min-width: 0; }
 .source-card { width: 686rpx; margin-top: 30rpx; padding: 24rpx 28rpx; box-sizing: border-box; border-radius: 26rpx; background: #FFFFFF; border: 1rpx solid #E8EFEA; }
 .source-title { color: #17231E; font-size: 27rpx; line-height: 34rpx; font-weight: 900; }
 .source-text { margin-top: 8rpx; color: #7B8580; font-size: 23rpx; line-height: 34rpx; word-break: break-all; }
