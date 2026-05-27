@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>邻里帮帮｜社区邻里互助小程序产品资料包</title>
+  <style>
+    :root {
+      --bg: #f6fff3;
+      --card: #ffffff;
+      --text: #172017;
+      --muted: #637063;
+      --green: #9cff3f;
+      --green-dark: #52a600;
+      --orange: #ff7a2f;
+      --line: #e5f2df;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: radial-gradient(circle at 20% 0%, #eaffd8 0, transparent 34%), var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+    }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 48px 20px 72px; }
+    .hero {
+      padding: 56px 42px;
+      background: linear-gradient(135deg, #ffffff 0%, #f1ffe9 100%);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: 0 24px 80px rgba(46, 97, 20, .12);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero:after {
+      content: "";
+      position: absolute;
+      right: -60px;
+      top: -60px;
+      width: 220px;
+      height: 220px;
+      background: var(--green);
+      border-radius: 50%;
+      opacity: .35;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 14px;
+      border-radius: 999px;
+      background: #efffe4;
+      color: var(--green-dark);
+      font-weight: 700;
+      border: 1px solid #d7f6c7;
+    }
+    h1 { margin: 18px 0 12px; font-size: clamp(32px, 6vw, 62px); line-height: 1.05; letter-spacing: -1px; }
+    .subtitle { font-size: 21px; color: var(--muted); max-width: 760px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 30px; }
+    a.btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 13px 18px;
+      border-radius: 16px;
+      text-decoration: none;
+      color: var(--text);
+      background: var(--green);
+      font-weight: 800;
+      box-shadow: 0 10px 24px rgba(82, 166, 0, .16);
+    }
+    a.btn.secondary { background: #fff; border: 1px solid var(--line); box-shadow: none; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 24px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 16px 48px rgba(46, 97, 20, .08);
+    }
+    h2 { margin: 48px 0 16px; font-size: 30px; }
+    h3 { margin: 0 0 10px; font-size: 20px; }
+    .card p { color: var(--muted); margin: 0 0 16px; }
+    .card a { color: var(--green-dark); font-weight: 800; text-decoration: none; }
+    .pillbox { display: flex; flex-wrap: wrap; gap: 10px; }
+    .pill { padding: 8px 12px; border-radius: 999px; background: #fff7f1; color: #9c410d; border: 1px solid #ffe2ce; font-weight: 700; }
+    .process { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+    .step { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 16px; min-height: 100px; }
+    .step b { display: block; color: var(--orange); margin-bottom: 6px; }
+    .footer { margin-top: 42px; color: var(--muted); text-align: center; }
+    @media (max-width: 860px) {
+      .hero { padding: 38px 24px; }
+      .grid, .process { grid-template-columns: 1fr; }
+      .subtitle { font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <span class="tag">社区跑腿 · 本地生活 · 小程序产品包</span>
+      <h1>邻里帮帮</h1>
+      <p class="subtitle">一个面向小区居民的邻里互助小程序：帮取快递、送水上楼、代扔垃圾、取餐代买，把小区里的碎片需求变成可运营的订单系统。</p>
+      <div class="actions">
+        <a class="btn" href="./neighbor-help-miniapp/PRD_V1.0.md">查看产品文档</a>
+        <a class="btn secondary" href="./neighbor-help-miniapp/MVP_CHECKLIST.md">MVP 开发清单</a>
+        <a class="btn secondary" href="./neighbor-help-miniapp/OPERATION_PLAN.md">冷启动运营方案</a>
+      </div>
+    </section>
+
+    <h2>第一版先做什么</h2>
+    <div class="pillbox">
+      <span class="pill">帮取快递</span>
+      <span class="pill">送水上楼</span>
+      <span class="pill">代扔垃圾</span>
+      <span class="pill">取餐 / 取咖啡</span>
+      <span class="pill">商品代买</span>
+      <span class="pill">清洁维修预约</span>
+    </div>
+
+    <h2>核心资料</h2>
+    <section class="grid">
+      <article class="card">
+        <h3>PRD 产品文档</h3>
+        <p>包含产品定位、用户角色、服务类目、用户端、接单端、后台、支付结算、风控和版本规划。</p>
+        <a href="./neighbor-help-miniapp/PRD_V1.0.md">打开 PRD_V1.0.md</a>
+      </article>
+      <article class="card">
+        <h3>MVP 开发清单</h3>
+        <p>把第一版拆成 P0、P1、P2，方便和开发沟通工期、报价和优先级。</p>
+        <a href="./neighbor-help-miniapp/MVP_CHECKLIST.md">打开 MVP_CHECKLIST.md</a>
+      </article>
+      <article class="card">
+        <h3>冷启动运营方案</h3>
+        <p>适合先跑一个小区，用 7 到 14 天验证真实订单，不让产品变成漂亮空壳。</p>
+        <a href="./neighbor-help-miniapp/OPERATION_PLAN.md">打开 OPERATION_PLAN.md</a>
+      </article>
+    </section>
+
+    <h2>订单闭环</h2>
+    <section class="process">
+      <div class="step"><b>01</b>用户选择小区</div>
+      <div class="step"><b>02</b>选择服务并填写需求</div>
+      <div class="step"><b>03</b>微信支付</div>
+      <div class="step"><b>04</b>接单员抢单/平台派单</div>
+      <div class="step"><b>05</b>上传完成凭证</div>
+      <div class="step"><b>06</b>用户确认，平台结算</div>
+    </section>
+
+    <p class="footer">建议先用一个小区测试订单，再扩展商家、会员、广告位和多小区复制。</p>
+  </main>
+</body>
+</html>
