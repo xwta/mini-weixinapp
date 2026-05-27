@@ -168,6 +168,17 @@ async function ensureLogin() {
   await loginWithWechatProfile({ nickname: '谱灵用户' })
 }
 
+async function tryFindLocalSong(text: string) {
+  try {
+    const local = await searchSongs({ keyword: text, page_size: 5 })
+    const reliableItems = getReliableLocalSongs(local.items || [], text)
+    return reliableItems[0]
+  } catch (error) {
+    console.log('local song lookup skipped', error)
+    return undefined
+  }
+}
+
 function createDirectCandidate(text: string, localSong?: Song | any): WebSongCandidate {
   const title = localSong?.title || normalizeSearchText(text) || text
   const artist = getSongArtist(localSong)
@@ -216,9 +227,8 @@ async function sendMessage() {
   try {
     if (activeMode.value === 'search' || activeMode.value === 'practice') {
       saveRecentSearch(text)
-      const local = await searchSongs({ keyword: text, page_size: 5 })
-      const reliableItems = getReliableLocalSongs(local.items, text)
-      await generateFullTabFromSongText(text, reliableItems[0])
+      const localSong = await tryFindLocalSong(text)
+      await generateFullTabFromSongText(text, localSong)
       return
     }
     await ensureLogin()
